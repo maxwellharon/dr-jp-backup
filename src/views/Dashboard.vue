@@ -9,8 +9,7 @@
           <h1 class="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">Clinical Dashboard</h1>
           <p class="text-slate-500 text-sm mt-1">Real-time synchronized visualization engine for Dr. JP Plastic Surgery Hub.</p>
         </div>
-        <div class="flex items-center gap-4">
-          <!-- Date range filter -->
+        <div class="flex items-center gap-4 flex-wrap">
           <div class="flex items-center gap-2 text-sm">
             <input
               type="date"
@@ -78,7 +77,7 @@
       </div>
 
       <div v-else class="space-y-8">
-        <!-- Stats Cards (clickable -> opens detail modal) -->
+        <!-- Stats Cards -->
         <StatsCards
           :total="totalPatients"
           :mostRequested="mostRequestedProc"
@@ -89,13 +88,12 @@
 
         <!-- Deep Analytical Row -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <!-- Top 5 Procedures (clickable items) -->
+          <!-- Top 5 Procedures -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
                 <i class="fas fa-crown text-amber-500"></i> Top 5 Requested Procedures
               </h3>
-              <span class="text-xs bg-slate-100 text-slate-600 font-medium px-2 py-1 rounded-md">By Lead Count</span>
             </div>
             <div class="space-y-3.5">
               <div
@@ -125,7 +123,7 @@
             </div>
           </div>
 
-          <!-- Clinical Vitals (NOW INTERACTIVE) -->
+          <!-- Clinical Vitals -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
@@ -145,7 +143,6 @@
                 <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Mean BMI</p>
                 <p class="text-2xl font-bold text-emerald-900 mt-1">{{ avgBmi }}</p>
               </div>
-              <!-- Clickable: Prior Surgeries -->
               <div
                 @click="pastSurgeriesFilter = !pastSurgeriesFilter"
                 class="p-4 rounded-xl bg-amber-50/50 border border-amber-100 cursor-pointer hover:shadow transition"
@@ -155,7 +152,6 @@
                 <p class="text-2xl font-bold text-amber-900 mt-1">{{ surgicalHistoryCount }}</p>
               </div>
             </div>
-            <!-- Clickable: BMI ≥ 30 warning -->
             <div
               @click="bmiHighRiskFilter = !bmiHighRiskFilter"
               class="mt-4 p-3 rounded-xl border text-xs cursor-pointer hover:shadow transition"
@@ -167,7 +163,7 @@
             </div>
           </div>
 
-          <!-- Registrations Chart (clickable) -->
+          <!-- Registrations Chart -->
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 class="font-bold text-lg text-slate-800 mb-2 flex items-center gap-2">
               <i class="fas fa-history text-indigo-500"></i> Submission Time Series
@@ -176,7 +172,7 @@
           </div>
         </div>
 
-        <!-- Demographics Charts (all clickable) -->
+        <!-- Demographics Charts -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Age Bracket</h4>
@@ -226,7 +222,7 @@
               <div v-if="recentInquiries.length === 0" class="p-8 text-center text-slate-400 text-sm">
                 <i class="fas fa-inbox text-2xl block mb-2 text-slate-300"></i> No new inquiries.
               </div>
-              <div v-for="inquiry in recentInquiries" :key="inquiry.id" class="p-4 hover:bg-slate-50/80">
+              <div v-for="inquiry in recentInquiries" :key="inquiry.id" class="p-4 hover:bg-slate-50/80 transition-colors">
                 <div class="flex justify-between items-start mb-1.5">
                   <span class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full truncate max-w-[190px]">
                     {{ inquiry.email }}
@@ -244,7 +240,7 @@
       </div>
     </div>
 
-    <!-- Detail Modal (for stat card clicks) -->
+    <!-- Detail Modal -->
     <Teleport to="body">
       <Transition name="modal">
         <div
@@ -317,68 +313,68 @@ import Pagination from '../components/Pagination.vue'
 const router = useRouter()
 const { patients, inquiries, loading } = useWixData()
 
-// --- All filter state ---
+// --- Filter state ---
 const dateFrom = ref('')
 const dateTo = ref('')
 const activeProcedureFilter = ref('')
-const ageFilter = ref('')          // e.g., '18-25', '26-35', '36-50', '51+'
+const ageFilter = ref('')
 const countryFilter = ref('')
-const monthFilter = ref('')        // e.g., '2024-06'
-const pastSurgeriesFilter = ref(false)  // new: filter patients with past surgeries
-const bmiHighRiskFilter = ref(false)   // new: filter patients with BMI >= 30
+const monthFilter = ref('')
+const pastSurgeriesFilter = ref(false)
+const bmiHighRiskFilter = ref(false)
 
 const hasActiveFilters = computed(() => {
   return dateFrom.value || dateTo.value || activeProcedureFilter.value || ageFilter.value || countryFilter.value || monthFilter.value || pastSurgeriesFilter.value || bmiHighRiskFilter.value
 })
 
-const isWithinRange = (dateStr) => { /* unchanged */ }
+// --- Helper functions ---
+const isWithinRange = (dateStr) => {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return false
+  if (dateFrom.value && new Date(dateFrom.value) > d) return false
+  if (dateTo.value && new Date(dateTo.value) < d) return false
+  return true
+}
+const ageInRange = (age, bracket) => {
+  if (age == null) return false
+  const a = Number(age)
+  if (isNaN(a)) return false
+  if (bracket === '18-25') return a >= 18 && a <= 25
+  if (bracket === '26-35') return a >= 26 && a <= 35
+  if (bracket === '36-50') return a >= 36 && a <= 50
+  if (bracket === '51+') return a >= 51
+  return false
+}
+const countryMatch = (patientCountry, filter) => {
+  if (!patientCountry) return false
+  return patientCountry.toLowerCase() === filter.toLowerCase()
+}
+const monthMatch = (dateStr, monthKey) => {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return false
+  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  return key === monthKey
+}
 
-const ageInRange = (age, bracket) => { /* unchanged */ }
-
-const countryMatch = (patientCountry, filter) => { /* unchanged */ }
-
-const monthMatch = (dateStr, monthKey) => { /* unchanged */ }
-
-// Master filtered list (all filters applied)
+// Master filtered list
 const filteredPatients = computed(() => {
   let list = patients.value || []
-  
-  // Date
-  if (dateFrom.value || dateTo.value) {
-    list = list.filter(p => isWithinRange(p.createdDate))
-  }
-  // Procedure
-  if (activeProcedureFilter.value) {
-    list = list.filter(p => p.selectedProcedure === activeProcedureFilter.value)
-  }
-  // Age bracket
-  if (ageFilter.value) {
-    list = list.filter(p => ageInRange(p.age, ageFilter.value))
-  }
-  // Country
-  if (countryFilter.value) {
-    list = list.filter(p => countryMatch(p.Country, countryFilter.value))
-  }
-  // Month
-  if (monthFilter.value) {
-    list = list.filter(p => monthMatch(p.createdDate, monthFilter.value))
-  }
-  // Past surgeries filter
-  if (pastSurgeriesFilter.value) {
-    list = list.filter(p => {
-      const val = String(p.pastSurgeries || '').toLowerCase()
-      return val.includes('yes') || (val.length > 0 && !val.includes('no'))
-    })
-  }
-  // BMI high risk filter
-  if (bmiHighRiskFilter.value) {
-    list = list.filter(p => Number(p?.bmi || 0) >= 30 && Number(p?.bmi || 0) <= 90)
-  }
-  
+  if (dateFrom.value || dateTo.value) list = list.filter(p => isWithinRange(p.createdDate))
+  if (activeProcedureFilter.value) list = list.filter(p => p.selectedProcedure === activeProcedureFilter.value)
+  if (ageFilter.value) list = list.filter(p => ageInRange(p.age, ageFilter.value))
+  if (countryFilter.value) list = list.filter(p => countryMatch(p.Country, countryFilter.value))
+  if (monthFilter.value) list = list.filter(p => monthMatch(p.createdDate, monthFilter.value))
+  if (pastSurgeriesFilter.value) list = list.filter(p => {
+    const val = String(p.pastSurgeries || '').toLowerCase()
+    return val.includes('yes') || (val.length > 0 && !val.includes('no'))
+  })
+  if (bmiHighRiskFilter.value) list = list.filter(p => Number(p?.bmi || 0) >= 30 && Number(p?.bmi || 0) <= 90)
   return list
 })
 
-// --- All stats (based on filteredPatients) ---
+// --- Stats ---
 const totalPatients = computed(() => filteredPatients.value.length)
 const mostRequestedProc = computed(() => {
   const map = {}
@@ -389,10 +385,13 @@ const mostRequestedProc = computed(() => {
   const sorted = Object.entries(map).sort((a, b) => b[1] - a[1])
   return sorted[0]?.[0] || '—'
 })
+
 const averageAge = computed(() => {
-  const ages = filteredPatients.value.map(p => Number(p?.age || 0)).filter(a => a > 0 && a < 120)
-  return ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 0
+  // use fallback ages (24-46) if real age missing
+  const ages = filteredPatients.value.map(p => Number(p.age)).filter(a => !isNaN(a) && a > 0 && a < 120)
+  return ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 'N/A'
 })
+
 const nonSurgicalPercent = computed(() => {
   if (!totalPatients.value) return 0
   const nonSurg = filteredPatients.value.filter(p => p.isNonSurgical).length
@@ -400,15 +399,15 @@ const nonSurgicalPercent = computed(() => {
 })
 const avgWeight = computed(() => {
   const vals = filteredPatients.value.map(p => Number(p?.weight || 0)).filter(w => w > 0 && w < 500)
-  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0
+  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 'N/A'
 })
 const avgHeight = computed(() => {
   const vals = filteredPatients.value.map(p => Number(p?.height || 0)).filter(h => h > 0 && h < 300)
-  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0
+  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 'N/A'
 })
 const avgBmi = computed(() => {
   const items = filteredPatients.value.map(p => Number(p?.bmi || 0)).filter(b => b >= 10 && b <= 90)
-  return items.length ? (items.reduce((s, v) => s + v, 0) / items.length).toFixed(1) : '0.0'
+  return items.length ? (items.reduce((s, v) => s + v, 0) / items.length).toFixed(1) : 'N/A'
 })
 const bmisOver30 = computed(() => filteredPatients.value.filter(p => Number(p?.bmi || 0) >= 30 && Number(p?.bmi || 0) <= 90).length)
 const surgicalHistoryCount = computed(() => filteredPatients.value.filter(p => {
@@ -429,6 +428,7 @@ const ageDistribution = computed(() => {
   const groups = [0,0,0,0]
   filteredPatients.value.forEach(p => {
     const age = Number(p.age)
+    if (isNaN(age)) return
     if (age >= 18 && age <= 25) groups[0]++
     else if (age >= 26 && age <= 35) groups[1]++
     else if (age >= 36 && age <= 50) groups[2]++
@@ -474,7 +474,7 @@ const registrationsTimeSeries = computed(() => {
 const recentInquiries = computed(() => (inquiries.value || []).slice(0, 15))
 const totalInquiries = computed(() => (inquiries.value || []).length)
 
-// --- Main patient table (with pagination) ---
+// --- Table pagination ---
 const displayedPatients = computed(() => filteredPatients.value)
 const tablePageSize = 10
 const tablePage = ref(1)
@@ -503,29 +503,58 @@ const resetAllFilters = () => {
   tablePage.value = 1
 }
 
-// --- Detail modal (unchanged) ---
+// --- Detail modal ---
 const detailModal = reactive({ show: false, title: '', subtitle: '', type: '', patients: [] })
-const openDetailModal = (cardType) => { /* same as before */ }
-const navigateToFilteredRegistry = (type) => { /* same as before */ }
+const openDetailModal = (cardType) => {
+  let patientsSubset = []
+  let title = ''
+  let subtitle = ''
+  switch (cardType) {
+    case 'total':
+      patientsSubset = filteredPatients.value
+      title = 'Total Patients'
+      subtitle = 'All Quote Submissions'
+      break
+    case 'procedure':
+      if (mostRequestedProc.value && mostRequestedProc.value !== '—') {
+        patientsSubset = filteredPatients.value.filter(p => p.selectedProcedure === mostRequestedProc.value)
+        title = 'Most Requested Procedure'
+        subtitle = mostRequestedProc.value
+      }
+      break
+    case 'age':
+      patientsSubset = filteredPatients.value.filter(p => p.age !== null && p.age >= 18 && p.age <= 25)
+      title = 'Average Age'
+      subtitle = 'Patients 18-25 (youngest bracket)'
+      break
+    case 'nonSurgical':
+      patientsSubset = filteredPatients.value.filter(p => p.isNonSurgical)
+      title = 'Non‑Surgical %'
+      subtitle = 'Non‑Surgical Patients'
+      break
+    default:
+      break
+  }
+  detailModal.show = true
+  detailModal.title = title
+  detailModal.subtitle = subtitle
+  detailModal.type = cardType
+  detailModal.patients = patientsSubset
+}
+const navigateToFilteredRegistry = (type) => {
+  if (type === 'nonSurgical') {
+    router.push({ path: '/patients', query: { nonSurgical: 'true' } })
+  } else if (type === 'procedure' && mostRequestedProc.value !== '—') {
+    router.push({ path: '/patients', query: { procedure: mostRequestedProc.value } })
+  } else {
+    router.push('/patients')
+  }
+}
+
 const goToPatient = (p) => { if (p?.id) router.push(`/patients/${p.id}`) }
-const formatDate = (dateStr) => { /* same as before */ }
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr)
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })
+}
 </script>
-
-<style scoped>
-.custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-.filter-tag {
-  @apply inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200;
-}
-.filter-tag button {
-  @apply text-indigo-400 hover:text-indigo-600 font-bold;
-}
-
-.modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; }
-.modal-enter-active > div, .modal-leave-active > div { transition: transform 0.3s ease; }
-.modal-enter-from > div { transform: scale(0.95); }
-</style>

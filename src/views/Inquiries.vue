@@ -104,7 +104,7 @@
     </div>
 
     <Teleport to="body">
-      <div v-if="showModal && activeInquiry" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div v-if="showModal && activeInquiry" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" @click.self="closeInquiryModal">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-xl max-w-2xl w-full overflow-hidden flex flex-col transform transition-transform scale-100 max-h-[90vh]">
           <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-900 px-6 py-5 text-white flex justify-between items-center">
             <div>
@@ -160,17 +160,12 @@ const currentPage = ref(1)
 const pageSize = 10
 const search = ref('')
 const sortBy = ref('recent')
-
-// Dialog modal UI control state values
 const showModal = ref(false)
 const activeInquiry = ref(null)
 
-// Highly defensive dynamic evaluation filter stream
 const filteredInquiries = computed(() => {
   const baseList = inquiries.value || []
-  let list = [...baseList] // Safe proxy array clone mutation bypass isolation
-
-  // 1. Text Search Evaluation match layers
+  let list = [...baseList]
   if (search.value) {
     const s = search.value.toLowerCase().trim()
     list = list.filter(inq => {
@@ -178,12 +173,9 @@ const filteredInquiries = computed(() => {
       const email = String(inq.email || '').toLowerCase()
       const subject = String(inq.subject || '').toLowerCase()
       const msg = String(inq.message || '').toLowerCase()
-      
       return email.includes(s) || subject.includes(s) || msg.includes(s)
     })
   }
-
-  // 2. Sorting Core Engine Execution Sequence rules
   if (sortBy.value === 'recent') {
     list.sort((a, b) => {
       const dateB = b?.createdDate ? new Date(b.createdDate).getTime() : 0
@@ -195,7 +187,6 @@ const filteredInquiries = computed(() => {
   } else if (sortBy.value === 'subject-az') {
     list.sort((a, b) => String(a?.subject || '').localeCompare(String(b?.subject || '')))
   }
-
   return list
 })
 
@@ -206,18 +197,12 @@ const paginatedInquiries = computed(() => {
   return filteredInquiries.value.slice(start, start + pageSize)
 })
 
-// Auto sync indices mapping parameters cleanly
 watch(totalPages, (newTotal) => {
-  if (currentPage.value > newTotal) {
-    currentPage.value = 1
-  }
+  if (currentPage.value > newTotal) currentPage.value = 1
 })
 
-const handlePageChange = (page) => {
-  currentPage.value = page
-}
+const handlePageChange = (page) => { currentPage.value = page }
 
-// Modal Toggle Action Controls
 const openInquiryModal = (inquiry) => {
   activeInquiry.value = inquiry
   showModal.value = true
@@ -228,12 +213,10 @@ const closeInquiryModal = () => {
   activeInquiry.value = null
 }
 
-// Precise Exact High-Fidelity Submission Timestamp Formatter Engine
 const formatHighFidelityTimestamp = (dateStr) => {
   if (!dateStr) return '—'
   const timeInstance = new Date(dateStr)
   if (isNaN(timeInstance.getTime())) return '—'
-  
   return timeInstance.toLocaleString('en-KE', {
     year: 'numeric',
     month: 'short',

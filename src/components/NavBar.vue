@@ -2,15 +2,16 @@
   <nav class="sticky top-0 z-50 backdrop-blur-md bg-slate-900/95 border-b border-slate-800 shadow-md transition-all duration-300">
     <div class="max-w-7xl mx-auto px-4 md:px-8">
       <div class="flex justify-between items-center h-16">
-        
+        <!-- Logo -->
         <router-link to="/dashboard" class="flex items-center group outline-none py-1">
-          <img 
-            src="../assets/John_Paul_Logo_Design_01-03.avif" 
-            alt="Dr. John Paul Logo" 
-            class="h-10 md:h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-102"
+          <img
+            src="../assets/John_Paul_Logo_Design_01-03.avif"
+            alt="Dr. John Paul Logo"
+            class="h-10 md:h-11 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
           />
         </router-link>
-        
+
+        <!-- Desktop nav -->
         <div class="hidden md:flex items-center gap-1.5 font-semibold text-sm">
           <router-link to="/dashboard" active-class="bg-indigo-600 text-white border border-indigo-500" class="text-slate-300 hover:text-white hover:bg-slate-800 px-3.5 py-2 rounded-xl transition-all flex items-center gap-2">
             📊 Dashboard
@@ -40,12 +41,14 @@
           </button>
         </div>
 
+        <!-- Mobile hamburger -->
         <button @click="mobileOpen = !mobileOpen" class="md:hidden h-10 w-10 border border-slate-700 text-slate-300 hover:bg-slate-800 flex items-center justify-center rounded-xl transition outline-none">
           <i :class="mobileOpen ? 'fas fa-times' : 'fas fa-bars'" class="text-lg transition-transform duration-200"></i>
         </button>
       </div>
     </div>
 
+    <!-- Mobile menu -->
     <Transition name="slide">
       <div v-if="mobileOpen" class="md:hidden bg-slate-900/98 border-t border-slate-800 px-4 py-4 flex flex-col gap-2 font-semibold text-sm shadow-inner max-h-[calc(100vh-4rem)] overflow-y-auto">
         <router-link to="/dashboard" @click="mobileOpen = false" active-class="bg-indigo-600 text-white" class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3">
@@ -54,7 +57,7 @@
         <router-link to="/patients" @click="mobileOpen = false" active-class="bg-indigo-600 text-white" class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3">
           <i class="fas fa-user-injured w-5 opacity-70 text-center"></i> Patient Registry
         </router-link>
-        <router-link Bureau to="/procedures" @click="mobileOpen = false" active-class="bg-indigo-600 text-white" class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3">
+        <router-link to="/procedures" @click="mobileOpen = false" active-class="bg-indigo-600 text-white" class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3">
           <i class="fas fa-notes-medical w-5 opacity-70 text-center"></i> Medical Procedures
         </router-link>
         <router-link to="/inquiries" @click="mobileOpen = false" active-class="bg-indigo-600 text-white" class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3">
@@ -88,14 +91,12 @@ const router = useRouter()
 const mobileOpen = ref(false)
 const userEmail = ref('')
 
-// Initialize operational auth cache fields dynamically inside lifecycle anchors
 onMounted(() => {
   if (auth.currentUser) {
     userEmail.value = auth.currentUser.email || 'operator@ogalo.io'
   }
 })
 
-// Defensively shielded asynchronous router checkout action sequence
 const handleLogout = async () => {
   if (confirm('Verify confirmation statement: Terminate current clinic terminal session and exit back to security portal?')) {
     try {

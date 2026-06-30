@@ -1,6 +1,6 @@
 <template>
   <div class="bg-white p-5 rounded-2xl shadow-md hover:shadow-lg transition">
-    <h3 class="font-bold text-xl mb-3">🌍 Country Distribution</h3>
+    <h3 class="font-bold text-xl mb-3">Country Distribution</h3>
     <canvas ref="canvas" width="400" height="250" style="max-height: 250px;"></canvas>
   </div>
 </template>
@@ -9,7 +9,7 @@
 import { ref, onMounted, watch } from 'vue'
 import Chart from 'chart.js/auto'
 
-const props = defineProps(['data'])
+const props = defineProps({ data: Object })
 const emit = defineEmits(['slice-click'])
 const canvas = ref(null)
 let chart = null
@@ -22,11 +22,11 @@ onMounted(() => {
       labels: props.data.labels || [],
       datasets: [{
         data: props.data.values || [],
-        backgroundColor: ['#fbbf24','#34d399','#60a5fa','#f87171','#a78bfa','#f472b6','#fb923c','#22d3ee']
+        backgroundColor: ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16'],
+        borderWidth: 0
       }]
     },
     options: {
-      responsive: true,
       plugins: { legend: { position: 'bottom' } },
       onClick: (event, elements) => {
         if (elements.length > 0) {

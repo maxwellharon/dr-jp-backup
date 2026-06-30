@@ -3,7 +3,6 @@
     <NavBar />
     
     <div class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
-      <!-- Feature View Bar Header -->
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h2 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -21,15 +20,12 @@
         </button>
       </div>
 
-      <!-- Live Reactive Insights Output -->
       <div class="space-y-4">
-        <!-- Loading Active Feedback -->
         <div v-if="loading || computing" class="bg-white rounded-2xl border border-slate-200 shadow-sm p-12 flex flex-col items-center justify-center space-y-3">
           <div class="h-8 w-8 border-4 border-slate-200 border-t-purple-600 rounded-full animate-spin"></div>
           <p class="text-slate-500 text-sm font-medium">Re-calculating collection matrices across datasets...</p>
         </div>
 
-        <!-- Populated Insights Cards Layout Grid -->
         <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div v-for="(ins, idx) in insights" :key="idx" 
             class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md hover:border-slate-300 transition-all duration-300 border-l-4 transform hover:-translate-y-0.5"
@@ -55,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useWixData } from '../composables/useWixData'
 import NavBar from '../components/NavBar.vue'
 
@@ -75,7 +71,6 @@ const generateInsights = () => {
 
   computing.value = true
 
-  // Algorithmic Data Computations
   const total = data.length
   const procMap = new Map()
   const countries = new Map()
@@ -92,25 +87,18 @@ const generateInsights = () => {
     if (p.calculatedPrice) priceSum += Number(p.calculatedPrice)
     if (p.Country) countries.set(p.Country, (countries.get(p.Country) || 0) + 1)
     if (p.bmi && Number(p.bmi) >= 30) highBmiCount++
-    
     const surgVal = String(p.pastSurgeries || '').toLowerCase().trim()
-    if (surgVal.includes('yes') || (surgVal.length > 0 && !surgVal.includes('no'))) {
-      pastSurgCount++
-    }
+    if (surgVal.includes('yes') || (surgVal.length > 0 && !surgVal.includes('no'))) pastSurgCount++
   })
 
-  // Sort and resolve top items
   const sortedProcs = [...procMap.entries()].sort((a, b) => b[1] - a[1])
   const topProc = sortedProcs[0]?.[0] || "General Consultation"
   const topProcPct = total ? Math.round((procMap.get(topProc) / total) * 100) : 0
-  
   const avgAge = total ? Math.round(ageSum / total) : 0
   const nonSurgPercent = total ? Math.round((nonSurg / total) * 100) : 0
   const avgPrice = total ? Math.round(priceSum / total) : 0
-  
   const topCountry = [...countries.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "Kenya"
 
-  // Structural dynamic recommendations array configuration
   insights.value = [
     { 
       title: "📈 Procedure Demand Surge", 
@@ -138,34 +126,16 @@ const generateInsights = () => {
     }
   ]
 
-  setTimeout(() => {
-    computing.value = false
-  }, 350)
+  setTimeout(() => { computing.value = false }, 350)
 }
 
-const refreshInsights = () => {
-  generateInsights()
-}
+const refreshInsights = () => { generateInsights() }
 
-// Watch active data synchronization arrays to ensure dynamic compute logic
 watch(patients, (newVal) => {
-  if (newVal && newVal.length > 0) {
-    generateInsights()
-  }
+  if (newVal && newVal.length > 0) generateInsights()
 }, { immediate: true })
 
-const borderColor = (idx) => {
-  const borderColors = ['border-l-indigo-500', 'border-l-purple-500', 'border-l-pink-500', 'border-l-amber-500', 'border-l-emerald-500', 'border-l-rose-500']
-  return borderColors[idx % borderColors.length]
-}
-
-const bgClass = (idx) => {
-  const lightBgs = ['bg-indigo-50 text-indigo-600', 'bg-purple-50 text-purple-600', 'bg-pink-50 text-pink-600', 'bg-amber-50 text-amber-600', 'bg-emerald-50 text-emerald-600', 'bg-rose-50 text-rose-600']
-  return lightBgs[idx % lightBgs.length]
-}
-
-const iconClass = (idx) => {
-  const icons = ['fas fa-chart-line', 'fas fa-users', 'fas fa-syringe', 'fas fa-globe-africa', 'fas fa-wallet', 'fas fa-shield-virus']
-  return icons[idx % icons.length]
-}
+const borderColor = (idx) => ['border-l-indigo-500', 'border-l-purple-500', 'border-l-pink-500', 'border-l-amber-500', 'border-l-emerald-500', 'border-l-rose-500'][idx % 6]
+const bgClass = (idx) => ['bg-indigo-50 text-indigo-600', 'bg-purple-50 text-purple-600', 'bg-pink-50 text-pink-600', 'bg-amber-50 text-amber-600', 'bg-emerald-50 text-emerald-600', 'bg-rose-50 text-rose-600'][idx % 6]
+const iconClass = (idx) => ['fas fa-chart-line', 'fas fa-users', 'fas fa-syringe', 'fas fa-globe-africa', 'fas fa-wallet', 'fas fa-shield-virus'][idx % 6]
 </script>

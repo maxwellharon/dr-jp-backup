@@ -3,7 +3,6 @@
     <NavBar />
     
     <div class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      <!-- Upper Panel Header Section -->
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h2 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -16,9 +15,8 @@
         </div>
       </div>
 
-      <!-- Advanced Sorting, Filtering, and Search Controls -->
+      <!-- Controls -->
       <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <!-- Live Global Text Search -->
         <div class="relative">
           <i class="fas fa-search absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
           <input 
@@ -28,7 +26,6 @@
           />
         </div>
 
-        <!-- Filter by Category Group -->
         <div class="relative">
           <select v-model="categoryFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white transition text-sm text-slate-700 appearance-none">
             <option value="">All Categories</option>
@@ -37,7 +34,6 @@
           <i class="fas fa-chevron-down absolute right-3.5 top-4 text-slate-400 pointer-events-none text-xs"></i>
         </div>
 
-        <!-- Sorting Engine Selector Switch -->
         <div class="relative">
           <select v-model="sortBy" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white transition text-sm text-slate-700 appearance-none">
             <option value="name-az">Sort: Procedure Name (A-Z)</option>
@@ -48,27 +44,24 @@
           <i class="fas fa-sort-amount-down absolute right-3.5 top-4 text-slate-400 pointer-events-none text-xs"></i>
         </div>
 
-        <!-- Control Action Buttons Reset -->
         <button @click="clearFilters" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2.5 px-4 rounded-xl transition text-sm flex items-center justify-center gap-2">
           <i class="fas fa-undo-alt text-xs"></i> Clear Adjustments
         </button>
       </div>
 
-      <!-- Core Operational Loading / Render View Stream Area -->
+      <!-- Loading -->
       <div v-if="loading" class="bg-white rounded-2xl border border-slate-200 shadow-sm py-20 flex flex-col items-center justify-center space-y-3">
         <div class="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-indigo-600"></div>
         <p class="text-sm font-medium text-slate-500">Querying live procedure metadata collections...</p>
       </div>
 
       <template v-else>
-        <!-- Empty Results Fallback Template Area -->
         <div v-if="filteredProcedures.length === 0" class="bg-white rounded-2xl border border-slate-200 shadow-sm py-16 text-center text-slate-400">
           <i class="fas fa-briefcase-medical text-4xl block mb-3 text-slate-300"></i>
           <p class="font-bold text-slate-700">No procedures match these parameters</p>
           <p class="text-xs text-slate-400 mt-0.5">Try widening search criteria or resetting column fields.</p>
         </div>
 
-        <!-- High-Fidelity Data Display Grid Matrix Table Layout -->
         <div v-else class="space-y-4">
           <div class="overflow-hidden bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div class="overflow-x-auto">
@@ -84,27 +77,22 @@
                 </thead>
                 <tbody class="divide-y divide-slate-200 bg-white text-sm text-slate-700">
                   <tr v-for="proc in paginatedProcedures" :key="proc.id" class="hover:bg-indigo-50/20 transition-colors group">
-                    <!-- Title Column -->
                     <td class="px-6 py-4 font-bold text-slate-900 whitespace-nowrap">
                       {{ proc.procedureName || 'Unnamed Procedure' }}
                     </td>
-                    <!-- Category Badge Block Component Mapping -->
                     <td class="px-6 py-4 whitespace-nowrap">
                       <span :class="categoryBadgeClass(proc.category)" class="inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-semibold border">
                         {{ proc.category || 'General Care' }}
                       </span>
                     </td>
-                    <!-- Estimated Financial Boundaries -->
                     <td class="px-6 py-4 whitespace-nowrap font-mono text-xs font-bold text-indigo-950">
                       KES {{ formatPrice(proc.minPrice) }} – {{ formatPrice(proc.maxPrice) }}
                     </td>
-                    <!-- Content Description Text Snippet Limit Line -->
                     <td class="px-6 py-4 max-w-sm">
                       <p class="text-xs text-slate-500 line-clamp-1 leading-relaxed">
                         {{ proc.description || 'No baseline operational specifications logged.' }}
                       </p>
                     </td>
-                    <!-- Row Detail Expansion Control Nodes -->
                     <td class="px-6 py-4 text-right whitespace-nowrap text-xs font-medium">
                       <button @click="openProcedureModal(proc)" class="text-indigo-600 hover:text-indigo-900 bg-indigo-50 group-hover:bg-indigo-600 group-hover:text-white px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 ml-auto">
                         <i class="fas fa-eye text-[10px]"></i> View Specs
@@ -116,7 +104,6 @@
             </div>
           </div>
 
-          <!-- Pagination Flow Interface Footer Row Controls -->
           <div class="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
             <p class="text-xs font-medium text-slate-500">
               Displaying catalog procedures {{ (currentPage - 1) * pageSize + 1 }} to {{ Math.min(currentPage * pageSize, filteredProcedures.length) }} of {{ filteredProcedures.length }}.
@@ -131,11 +118,10 @@
       </template>
     </div>
 
-    <!-- Procedure Detail Inspection Teleport Portal Overlay Container -->
+    <!-- Detail Modal -->
     <Teleport to="body">
-      <div v-if="showModal && activeProcedure" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div v-if="showModal && activeProcedure" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in" @click.self="closeProcedureModal">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-xl max-w-2xl w-full overflow-hidden flex flex-col transform transition-transform scale-100 max-h-[90vh]">
-          <!-- Top bar with brand gradient context accent lines -->
           <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-900 px-6 py-5 text-white flex justify-between items-center">
             <div>
               <span class="text-[10px] font-mono tracking-widest uppercase bg-white/20 px-2 py-0.5 rounded-md text-indigo-200 font-semibold">
@@ -150,9 +136,7 @@
             </button>
           </div>
           
-          <!-- Core Catalog Information Block Fields -->
           <div class="p-6 overflow-y-auto space-y-5 text-sm leading-relaxed text-slate-700">
-            <!-- Financial Parameter Cards Grid Mapping -->
             <div>
               <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Base Cost Calculations Matrix</p>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -167,7 +151,6 @@
               </div>
             </div>
 
-            <!-- Description Block Entry Section -->
             <div class="space-y-2">
               <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                 <i class="fas fa-file-alt text-slate-400"></i> Clinical Treatment Specification Guidelines
@@ -178,7 +161,6 @@
             </div>
           </div>
 
-          <!-- Bottom Operational Action Bar Dismiss Interface -->
           <div class="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end">
             <button @click="closeProcedureModal" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-5 py-2 rounded-xl text-sm transition shadow-sm">
               Acknowledge and Return
@@ -204,22 +186,17 @@ const sortBy = ref('name-az')
 const currentPage = ref(1)
 const pageSize = 10
 
-// Dialog modal component control states
 const showModal = ref(false)
 const activeProcedure = ref(null)
 
-// Safely harvest distinctive categories without running into object mutation constraints
 const uniqueCategories = computed(() => {
   const collection = procedures.value || []
   return [...new Set(collection.map(p => p?.category).filter(Boolean))].sort()
 })
 
-// Defensively shielded filter + search execution stream pipeline
 const filteredProcedures = computed(() => {
   const baseList = procedures.value || []
-  let list = [...baseList] // Shallow structural clone removes proxy locks during sorting
-
-  // 1. Context Multi-field search string comparison matches
+  let list = [...baseList]
   if (search.value) {
     const s = search.value.toLowerCase().trim()
     list = list.filter(p => {
@@ -227,17 +204,12 @@ const filteredProcedures = computed(() => {
       const name = String(p.procedureName || '').toLowerCase()
       const cat = String(p.category || '').toLowerCase()
       const desc = String(p.description || '').toLowerCase()
-      
       return name.includes(s) || cat.includes(s) || desc.includes(s)
     })
   }
-
-  // 2. Exact Category Dropdown Target Matches
   if (categoryFilter.value) {
     list = list.filter(p => p?.category === categoryFilter.value)
   }
-
-  // 3. Execution Sort logic mapping rules
   if (sortBy.value === 'name-az') {
     list.sort((a, b) => String(a?.procedureName || '').localeCompare(String(b?.procedureName || '')))
   } else if (sortBy.value === 'name-za') {
@@ -247,7 +219,6 @@ const filteredProcedures = computed(() => {
   } else if (sortBy.value === 'price-high') {
     list.sort((a, b) => Number(b?.maxPrice || 0) - Number(a?.maxPrice || 0))
   }
-
   return list
 })
 
@@ -258,16 +229,11 @@ const paginatedProcedures = computed(() => {
   return filteredProcedures.value.slice(start, start + pageSize)
 })
 
-// Automatically monitor bounds shifts to reset indexes cleanly
 watch(totalPages, (newTotal) => {
-  if (currentPage.value > newTotal) {
-    currentPage.value = 1
-  }
+  if (currentPage.value > newTotal) currentPage.value = 1
 })
 
-const handlePageChange = (page) => {
-  currentPage.value = page
-}
+const handlePageChange = (page) => { currentPage.value = page }
 
 const clearFilters = () => {
   search.value = ''
@@ -276,7 +242,6 @@ const clearFilters = () => {
   currentPage.value = 1
 }
 
-// Modal Toggle Action Controls
 const openProcedureModal = (proc) => {
   activeProcedure.value = proc
   showModal.value = true
@@ -291,7 +256,6 @@ const formatPrice = (price) => {
   return new Intl.NumberFormat('en-KE').format(Math.round(price || 0))
 }
 
-// Dynamic color class styling badge allocations based on surgical keyword parameters
 const categoryBadgeClass = (category) => {
   const norm = String(category || '').toLowerCase()
   if (norm.includes('non') || norm.includes('inject') || norm.includes('skin')) {

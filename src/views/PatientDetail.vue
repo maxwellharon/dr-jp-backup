@@ -30,6 +30,27 @@
           </div>
         </div>
 
+        <!-- Check‑out status row – NEW -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-slate-700">Status:</span>
+            <span :class="patient.checkedOut ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'" class="px-3 py-1 rounded-full text-xs font-bold border">
+              {{ patient.checkedOut ? 'Checked Out' : 'Pending' }}
+            </span>
+          </div>
+          <button
+            @click="toggleCheckedOut"
+            :disabled="updating"
+            class="px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2"
+            :class="patient.checkedOut ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-green-600 text-white hover:bg-green-700'"
+          >
+            <i v-if="updating" class="fas fa-spinner animate-spin text-xs"></i>
+            <template v-else>
+              {{ patient.checkedOut ? 'Revert to Pending' : 'Mark as Checked Out' }}
+            </template>
+          </button>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
@@ -149,13 +170,14 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWixData } from '../composables/useWixData'
 import NavBar from '../components/NavBar.vue'
 
 const route = useRoute()
-const { patients } = useWixData()
+const { patients, updatePatient } = useWixData()
+const updating = ref(false)
 
 const patient = computed(() => {
   const currentStack = patients.value || []
@@ -167,6 +189,19 @@ const hasSmokingRisk = computed(() => {
   const targetStr = String(patient.value.smokeVape || patient.value.raw?.smokeVape || '').toLowerCase()
   return targetStr.includes('yes') || targetStr.includes('true')
 })
+
+const toggleCheckedOut = async () => {
+  if (!patient.value || updating.value) return
+  updating.value = true
+  try {
+    const newStatus = !patient.value.checkedOut
+    await updatePatient(patient.value.id, { checkedOut: newStatus })
+  } catch (e) {
+    alert('Update failed: ' + e.message)
+  } finally {
+    updating.value = false
+  }
+}
 
 // Deep algorithmic AI parsing message engine
 const aiSafetyInsightMessage = computed(() => {

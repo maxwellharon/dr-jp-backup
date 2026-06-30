@@ -19,7 +19,7 @@
       class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-amber-500 hover:shadow-lg transition transform hover:-translate-y-1 cursor-pointer"
     >
       <div class="text-slate-500 text-sm">Average Age</div>
-      <div class="text-3xl font-bold">{{ avgAge }}</div>
+      <div class="text-3xl font-bold">{{ avgAge === 'N/A' ? 'N/A' : avgAge }}</div>
     </div>
     <div
       @click="$emit('card-click', 'nonSurgical')"
@@ -32,6 +32,11 @@
 </template>
 
 <script setup>
-defineProps(['total', 'mostRequested', 'avgAge', 'nonSurgPercent'])
+defineProps({
+  total: [Number, String],
+  mostRequested: [Number, String],
+  avgAge: [Number, String],
+  nonSurgPercent: [Number, String]
+})
 defineEmits(['card-click'])
 </script>

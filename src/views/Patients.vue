@@ -3,7 +3,6 @@
     <NavBar />
     
     <div class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
-      <!-- Header -->
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h2 class="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -106,24 +105,13 @@ const showUpload = ref(false)
 const currentPage = ref(1)
 const pageSize = 10
 
+// Headers must match the columns rendered in ResponsiveTable
 const headers = ['Name', 'Procedure', 'Age', 'Phone', 'Price (KES)']
 
-// Read query parameters on mount to pre-set filters
 onMounted(() => {
-  if (route.query.procedure) {
-    procFilter.value = route.query.procedure
-  }
-  if (route.query.nonSurgical === 'true') {
-    // Set a special filter for non-surgical – we'll implement it in the filteredPatients logic
-    // We'll add a nonSurgicalFilter ref
-  }
-  if (route.query.search) {
-    search.value = route.query.search
-  }
+  if (route.query.procedure) procFilter.value = route.query.procedure
+  if (route.query.search) search.value = route.query.search
 })
-
-// Additional hidden filter for non-surgical flag from query
-const nonSurgicalOnly = ref(route.query.nonSurgical === 'true')
 
 const uniqueProcedures = computed(() => {
   const dataset = patients.value || []
@@ -134,11 +122,6 @@ const filteredPatients = computed(() => {
   const baseList = patients.value || []
   let list = [...baseList]
   
-  // Apply non-surgical filter if set
-  if (nonSurgicalOnly.value) {
-    list = list.filter(p => p?.isNonSurgical)
-  }
-
   if (search.value) {
     const s = search.value.toLowerCase().trim()
     list = list.filter(p => {
@@ -185,9 +168,7 @@ const clearFilters = () => {
   search.value = ''
   procFilter.value = ''
   sortBy.value = 'recent'
-  nonSurgicalOnly.value = false
   currentPage.value = 1
-  // Also clear query params to keep URL clean (optional)
   router.replace({ query: {} })
 }
 
@@ -196,11 +177,11 @@ const goToPatient = (patient) => {
 }
 
 const handleDelete = async (id) => {
-  if (confirm('Verify confirmation statement: Permanently remove this patient profile trace from Wix database records?')) {
+  if (confirm('Permanently remove this patient?')) {
     try {
       await deletePatient(id)
     } catch (e) {
-      alert('Action error: ' + e.message)
+      alert('Delete failed: ' + e.message)
     }
   }
 }
