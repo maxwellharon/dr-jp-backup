@@ -9,32 +9,20 @@ const error = ref(null)
 
 const COLLECTIONS = {
     patients: 'QuoteSubmissions',
-    inquiries: 'contact122',
+    inquiries: 'contact122',          // adjust if your Wix collection ID is different
     procedures: 'Procedures'
 }
 
 async function fetchCollection(key) {
     const id = COLLECTIONS[key]
     try {
-        const url = `/api/wix-data?collection=${encodeURIComponent(id)}`
-        console.log(`📡 Fetching ${key} from: ${url}`)
-
-        const res = await fetch(url)
-
+        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}`)
         if (!res.ok) {
-            const errorText = await res.text()
-            console.error(`❌ ${key} fetch failed (${res.status}):`, errorText)
+            console.error(`❌ ${key} fetch failed (${res.status})`)
             return []
         }
-
         const json = await res.json()
-        console.log(`✅ ${key} response:`, json)
-
-        // Wix returns different structures depending on endpoint
-        const items = json.items || json.dataItems || json.data || []
-        console.log(`📊 ${key} count: ${items.length}`)
-
-        return items
+        return json.items || json.dataItems || []
     } catch (e) {
         console.error(`❌ Error fetching ${key}:`, e)
         return []
@@ -48,35 +36,45 @@ function extractDate(d) {
     return null
 }
 
-function mapPatient(item) {
+function mapPatient(item, proceduresList) {
+    // Resolve procedure name from procedureId
+    const proc = proceduresList.find(p => p._id === item.procedureId)
+    const procedureName = proc ? (proc.procedureName || proc.title || proc.name) : 'Unknown Procedure'
+    const isNonSurgical = proc ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non')) : false
+
     return {
-        id: item._id || item.id,
-        name: item.name || item.title || 'Anonymous Patient',
+        id: item._id,
+        name: item.name || 'Anonymous',
         email: item.email || '',
         phone: item.phone || item.phoneNumber || item.mobile || '—',
-        age: Number(item.age) || null,
+        age: item.age ? Number(item.age) : null,        // may be missing in your form – leave null
         Country: item.Country || item.country || 'Kenya',
-        selectedProcedure: item.selectedProcedure || item.procedure || item.procedureName || 'General Consultation',
-        isNonSurgical: Boolean(item.isNonSurgical || item.nonSurgical),
-        bmi: Number(item.bmi) || null,
-        calculatedPrice: Number(item.calculatedPrice || item.calculatedFinalCost || item.price || 0),
-        createdDate: extractDate(item._createdDate || item.createdDate || item.timestamp)
+        selectedProcedure: procedureName,
+        isNonSurgical: isNonSurgical,
+        bmi: item.bmi ? Number(item.bmi) : null,
+        weight: item.weight ? Number(item.weight) : null,
+        height: item.height ? Number(item.height) : null,
+        pastSurgeries: item.pastSurgeries || '',
+        medicalConditions: item.medicalConditions || '',
+        smokeVape: item.smokeVape || '',
+        calculatedPrice: item.calculatedFinalCost ? Number(item.calculatedFinalCost) : 0,
+        createdDate: extractDate(item.timestamp || item._createdDate)
     }
 }
 
 function mapInquiry(item) {
     return {
-        id: item._id || item.id,
+        id: item._id,
         email: item.email || '',
         subject: item.subject || 'General Inquiry',
         message: item.message || item.yourMessage || '',
-        createdDate: extractDate(item._createdDate || item.submissionTime)
+        createdDate: extractDate(item.submissionTime || item._createdDate)
     }
 }
 
 function mapProcedure(item) {
     return {
-        id: item._id || item.id,
+        id: item._id,
         procedureName: item.procedureName || item.title || item.name || '',
         category: item.category || '',
         minPrice: Number(item.minPrice) || 0,
@@ -85,126 +83,9 @@ function mapProcedure(item) {
     }
 }
 
-// Sample data to show something if Wix is empty
-const SAMPLE_PATIENTS = [
-    {
-        id: 'sample-1',
-        name: 'Jane Muthoni',
-        email: 'jane@example.com',
-        phone: '+254 712 345 678',
-        age: 32,
-        Country: 'Kenya',
-        selectedProcedure: 'Botox',
-        isNonSurgical: true,
-        bmi: 24,
-        calculatedPrice: 15000,
-        createdDate: new Date().toISOString()
-    },
-    {
-        id: 'sample-2',
-        name: 'David Ochieng',
-        email: 'david@example.com',
-        phone: '+254 723 987 654',
-        age: 45,
-        Country: 'Kenya',
-        selectedProcedure: 'Liposuction',
-        isNonSurgical: false,
-        bmi: 28,
-        calculatedPrice: 250000,
-        createdDate: new Date().toISOString()
-    },
-    {
-        id: 'sample-3',
-        name: 'Sarah Wanjiku',
-        email: 'sarah@example.com',
-        phone: '+254 734 567 890',
-        age: 28,
-        Country: 'Kenya',
-        selectedProcedure: 'Rhinoplasty',
-        isNonSurgical: false,
-        bmi: 22,
-        calculatedPrice: 180000,
-        createdDate: new Date().toISOString()
-    },
-    {
-        id: 'sample-4',
-        name: 'Peter Kamau',
-        email: 'peter@example.com',
-        phone: '+254 745 123 456',
-        age: 38,
-        Country: 'Kenya',
-        selectedProcedure: 'Botox',
-        isNonSurgical: true,
-        bmi: 26,
-        calculatedPrice: 12000,
-        createdDate: new Date().toISOString()
-    },
-    {
-        id: 'sample-5',
-        name: 'Grace Akinyi',
-        email: 'grace@example.com',
-        phone: '+254 756 789 012',
-        age: 52,
-        Country: 'Kenya',
-        selectedProcedure: 'Facelift',
-        isNonSurgical: false,
-        bmi: 25,
-        calculatedPrice: 350000,
-        createdDate: new Date().toISOString()
-    }
-]
-
-const SAMPLE_INQUIRIES = [
-    {
-        id: 'inq-1',
-        email: 'patient1@example.com',
-        subject: 'Consultation Request',
-        message: 'I would like to book a consultation for rhinoplasty.',
-        createdDate: new Date().toISOString()
-    },
-    {
-        id: 'inq-2',
-        email: 'patient2@example.com',
-        subject: 'Pricing Question',
-        message: 'What is the cost of liposuction?',
-        createdDate: new Date().toISOString()
-    }
-]
-
-const SAMPLE_PROCEDURES = [
-    {
-        id: 'proc-1',
-        procedureName: 'Rhinoplasty',
-        category: 'Surgical',
-        minPrice: 150000,
-        maxPrice: 250000,
-        description: 'Nose reshaping surgery'
-    },
-    {
-        id: 'proc-2',
-        procedureName: 'Liposuction',
-        category: 'Surgical',
-        minPrice: 200000,
-        maxPrice: 350000,
-        description: 'Fat removal procedure'
-    },
-    {
-        id: 'proc-3',
-        procedureName: 'Botox',
-        category: 'Non-Surgical',
-        minPrice: 10000,
-        maxPrice: 25000,
-        description: 'Wrinkle reduction injections'
-    },
-    {
-        id: 'proc-4',
-        procedureName: 'Facelift',
-        category: 'Surgical',
-        minPrice: 300000,
-        maxPrice: 500000,
-        description: 'Full facial rejuvenation'
-    }
-]
+// Optional sample data – only used if Wix returns empty (fallback removed for now,
+// but you can keep a small set if you like)
+const SAMPLE_PATIENTS = []   // leave empty to rely 100% on live data
 
 async function loadAll() {
     if (loading.value) return
@@ -218,32 +99,20 @@ async function loadAll() {
             fetchCollection('procedures')
         ])
 
-        // Map the data
-        procedures.value = rawPr.length > 0
-            ? rawPr.map(mapProcedure)
-            : SAMPLE_PROCEDURES
+        procedures.value = rawPr.map(mapProcedure)
 
-        inquiries.value = rawI.length > 0
-            ? rawI.map(mapInquiry)
-            : SAMPLE_INQUIRIES
+        // Map inquiries
+        inquiries.value = rawI.length > 0 ? rawI.map(mapInquiry) : []
 
+        // Map patients – pass procedures list to resolve procedureId
         patients.value = rawP.length > 0
-            ? rawP.map(mapPatient)
+            ? rawP.map(p => mapPatient(p, procedures.value))
             : SAMPLE_PATIENTS
 
         console.log(`✅ Loaded: ${patients.value.length} patients, ${inquiries.value.length} inquiries, ${procedures.value.length} procedures`)
-
-        if (rawP.length === 0) {
-            console.warn('⚠️ Using sample data - Wix returned empty results')
-        }
     } catch (e) {
         console.error('❌ Error loading Wix data:', e)
         error.value = e.message
-
-        // Fallback to sample data on error
-        patients.value = SAMPLE_PATIENTS
-        inquiries.value = SAMPLE_INQUIRIES
-        procedures.value = SAMPLE_PROCEDURES
     } finally {
         loading.value = false
     }
