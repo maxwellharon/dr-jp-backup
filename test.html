@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dr. Ogalo Dashboard - Test Setup</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen text-gray-800 font-sans">
+<div id="app">
+    <div v-if="!user" class="p-8 max-w-md mx-auto mt-16 bg-white rounded-xl shadow-md border border-gray-100">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6 text-center">Dr. Ogalo Dashboard</h1>
+        <p class="text-sm text-gray-500 mb-4 text-center">Please log in to test connection strings.</p>
+        
+        <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+        <input v-model="email" type="email" placeholder="doctor@ogalo.com" class="border rounded-lg p-2.5 w-full mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        
+        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+        <input v-model="password" type="password" placeholder="••••••••" class="border rounded-lg p-2.5 w-full mb-6 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        
+        <div class="flex gap-4">
+            <button @click="login" class="bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2.5 rounded-lg w-full transition duration-150">Login</button>
+            <button @click="signup" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2.5 rounded-lg w-full transition duration-150">Sign Up</button>
+        </div>
+        
+        <p v-if="error" class="text-red-500 text-sm mt-4 bg-red-50 p-3 rounded-lg border border-red-200">{{ error }}</p>
+    </div>
+
+    <div v-else class="p-8 max-w-5xl mx-auto mt-8 bg-white rounded-xl shadow-sm border border-gray-100">
+        <div class="flex justify-between items-center border-b pb-6 mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Connection Validated</h1>
+                <p class="text-sm text-gray-500">Logged in as: <span class="font-semibold text-gray-700">{{ user.email }}</span></p>
+            </div>
+            <button @click="logout" class="bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-lg transition duration-150">Logout</button>
+        </div>
+
+        <h2 class="text-lg font-semibold text-gray-800 mb-3">Live Patients Collection Payload:</h2>
+        
+        <div v-if="patients.length === 0" class="bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg mb-4 text-sm">
+            Authenticated successfully, but no records were returned. Ensure a <strong>'patients'</strong> root collection exists in Firestore and that your Security Rules permit authenticated reads.
+        </div>
+
+        <div class="bg-gray-900 text-green-400 p-5 rounded-xl overflow-x-auto font-mono text-sm shadow-inner max-h-[500px]">
+            <pre>{{ JSON.stringify(patients, null, 2) }}</pre>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Live Firebase Config Variables Object
+    const firebaseConfig = {
+  apiKey: "AIzaSyCE3QDTlvp51E9UbfdxlwoAVO_uqxATvUs",   // ← Paste the exact one from test.html
+  authDomain: "dr-ogalo-dashboard.firebaseapp.com",
+  projectId: "dr-ogalo-dashboard",
+  storageBucket: "dr-ogalo-dashboard.firebasestorage.app",
+  messagingSenderId: "991201907262",
+  appId: "1:991201907262:web:3d2b0a2e5f4a01da7bf76f"
+};
+    // Initialize standard Firebase core app instance wrapper
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    const { createApp, ref } = Vue;
+    createApp({
+        setup() {
+            const user = ref(null);
+            const email = ref('');
+            const password = ref('');
+            const error = ref('');
+            const patients = ref([]);
+
+            const login = async () => {
+                try {
+                    const res = await auth.signInWithEmailAndPassword(email.value, password.value);
+                    user.value = res.user;
+                    error.value = '';
+                } catch(e) { 
+                    error.value = e.message; 
+                }
+            };
+
+            const signup = async () => {
+                try {
+                    const res = await auth.createUserWithEmailAndPassword(email.value, password.value);
+                    user.value = res.user;
+                    error.value = '';
+                } catch(e) { 
+                    error.value = e.message; 
+                }
+            };
+
+            const logout = async () => { 
+                await auth.signOut(); 
+                user.value = null; 
+                patients.value = [];
+            };
+
+            // Keep user session active across execution refreshes
+            auth.onAuthStateChanged(async (u) => {
+                user.value = u;
+                if (u) {
+                    try {
+                        const snapshot = await db.collection('patients').get();
+                        patients.value = snapshot.docs.map(d => d.data());
+                    } catch (e) {
+                        error.value = "Firestore Read Error: " + e.message;
+                    }
+                }
+            });
+
+            return { user, email, password, error, login, signup, logout, patients };
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
