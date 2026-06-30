@@ -7,7 +7,8 @@ const loading = ref(false)
 
 const COLLECTIONS = {
     patients: 'QuoteSubmissions',
-    inquiries: 'contact12',
+    // UPDATED: Points to your actual active Wix Form Collection ID
+    inquiries: 'SendUsAMessageAndWellGetBackToYouShortly2',
     procedures: 'Procedures'
 }
 
@@ -49,7 +50,7 @@ function mapPatient(item, proceduresList, rawInquiriesList) {
     const seed = item._id ? item._id.replace(/[^0-9a-f]/g, '').substring(0, 3) : '0'
     const fallbackAge = (parseInt(seed, 16) % 22) + 24
 
-    // 3. RESOLVE PHONE NUMBER: Check QuoteSubmissions first, cross-match contact12 by email second
+    // 3. RESOLVE PHONE NUMBER: Check QuoteSubmissions first, cross-match by email second
     const matchedInquiry = Array.isArray(rawInquiriesList) && item.email
         ? rawInquiriesList.find(i => i.email && i.email.toLowerCase().trim() === item.email.toLowerCase().trim())
         : null
