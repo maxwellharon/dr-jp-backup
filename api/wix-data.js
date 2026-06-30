@@ -18,12 +18,20 @@ export default async function handler(req, res) {
         let allItems = [];
         let nextCursor = null;
         let hasNext = true;
+        let page = 0;
 
         while (hasNext) {
-            const body = { dataCollectionId: collection };
-            if (nextCursor) {
-                body.query = { cursor: nextCursor };
-            }
+            page++;
+
+            // ── Build the Wix query body ─────────────────────────────────────
+            // First page:    use paging.limit to override Wix's 50-item default
+            // Subsequent:    use cursorPaging so Wix knows where to resume
+            const body = {
+                dataCollectionId: collection,
+                query: nextCursor
+                    ? { cursorPaging: { cursor: nextCursor, limit: 1000 } }
+                    : { paging: { limit: 1000 } }
+            };
 
             const response = await fetch('https://www.wixapis.com/wix-data/v1/items/query', {
                 method: 'POST',
@@ -37,6 +45,7 @@ export default async function handler(req, res) {
 
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error(`❌ Wix API error (page ${page}):`, errorText);
                 return res.status(response.status).send(errorText);
             }
 
@@ -44,22 +53,28 @@ export default async function handler(req, res) {
             const items = data.items || data.dataItems || [];
             allItems.push(...items);
 
-            // Check if we should continue (only when `all=true`)
+            console.log(
+                `📦 ${collection} page ${page}: ` +
+                `got ${items.length}, total so far ${allItems.length} ` +
+                `(Wix says total=${data.pagingMetadata?.total})`
+            );
+
+            // Only keep paginating when the caller asked for all=true
             if (all !== 'true') {
                 hasNext = false;
             } else {
                 hasNext = data.pagingMetadata?.hasNext || false;
                 nextCursor = data.pagingMetadata?.cursors?.next || null;
+                if (!nextCursor) hasNext = false;  // safety: stop if cursor disappeared
             }
         }
 
-        // Return everything in the same format as a single page response,
-        // so the frontend doesn't need to change.
         res.status(200).json({
             items: allItems,
             totalCount: allItems.length,
             totalResults: allItems.length
         });
+
     } catch (error) {
         console.error('🔥 Wix proxy crash:', error.message);
         res.status(500).json({ error: 'Internal proxy error', message: error.message });

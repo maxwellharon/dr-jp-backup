@@ -13,48 +13,34 @@ const COLLECTIONS = {
     procedures: 'Procedures'
 }
 
-const PAGE_SIZE = 1000  // Wix's maximum per request
-
 /**
- * Fetches ALL items from a Wix collection by paginating with skip/limit.
- * Wix defaults to 50 items — this loops until the page is smaller than PAGE_SIZE,
- * meaning we've reached the last page.
+ * Fetches ALL items from a collection via the backend proxy.
+ * The backend handles Wix cursor pagination when all=true is passed —
+ * this function is intentionally simple: one request, backend does the work.
  */
 async function fetchAllFromCollection(key) {
     const id = COLLECTIONS[key]
-    const allItems = []
-    let skip = 0
+    try {
+        const url = `/api/wix-data?collection=${encodeURIComponent(id)}&all=true`
+        const res = await fetch(url)
 
-    while (true) {
-        try {
-            const url = `/api/wix-data?collection=${encodeURIComponent(id)}&limit=${PAGE_SIZE}&skip=${skip}`
-            const res = await fetch(url)
-
-            if (!res.ok) {
-                console.error(`❌ ${key} fetch failed (${res.status}) at skip=${skip}`)
-                break
-            }
-
-            const json = await res.json()
-            const items = json.items || json.dataItems || []
-
-            allItems.push(...items)
-            console.log(`📦 ${key}: fetched ${items.length} items (skip=${skip}, total so far: ${allItems.length})`)
-
-            // If we got fewer than a full page, we're done
-            if (items.length < PAGE_SIZE) break
-
-            skip += PAGE_SIZE
-        } catch (e) {
-            console.error(`❌ Error fetching ${key} at skip=${skip}:`, e)
-            break
+        if (!res.ok) {
+            console.error(`❌ ${key} fetch failed (${res.status})`)
+            return []
         }
-    }
 
-    return allItems
+        const json = await res.json()
+        const items = json.items || json.dataItems || []
+        console.log(`📦 ${key}: ${items.length} items loaded`)
+        return items
+
+    } catch (e) {
+        console.error(`❌ Error fetching ${key}:`, e)
+        return []
+    }
 }
 
-// ─── Date helper ─────────────────────────────────────────────────────────────
+// ─── Date helper ──────────────────────────────────────────────────────────────
 
 function extractDate(d) {
     if (!d) return null
@@ -123,7 +109,6 @@ async function loadAll() {
     error.value = null
 
     try {
-        // Fetch all three collections in parallel, each paginating internally
         const [rawP, rawI, rawPr] = await Promise.all([
             fetchAllFromCollection('patients'),
             fetchAllFromCollection('inquiries'),
@@ -132,8 +117,6 @@ async function loadAll() {
 
         procedures.value = rawPr.map(mapProcedure)
         inquiries.value = rawI.map(mapInquiry)
-
-        // Patients need the resolved procedures list to map procedureId → name
         patients.value = rawP.map(p => mapPatient(p, procedures.value))
 
         console.log(
@@ -167,3 +150,6 @@ export function useWixData() {
         refresh: loadAll
     }
 }
+
+
+
