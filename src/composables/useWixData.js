@@ -16,7 +16,8 @@ const COLLECTIONS = {
 async function fetchCollection(key) {
     const id = COLLECTIONS[key]
     try {
-        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}`)
+        // Added &all=true to get every record via backend pagination
+        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true`)
         if (!res.ok) {
             console.error(`❌ ${key} fetch failed (${res.status})`)
             return []
@@ -83,8 +84,7 @@ function mapProcedure(item) {
     }
 }
 
-// Optional sample data – only used if Wix returns empty (fallback removed for now,
-// but you can keep a small set if you like)
+// Optional sample data – only used if Wix returns empty
 const SAMPLE_PATIENTS = []   // leave empty to rely 100% on live data
 
 async function loadAll() {
