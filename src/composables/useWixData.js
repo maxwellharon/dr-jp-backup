@@ -8,7 +8,7 @@ const loading = ref(false)
 const COLLECTIONS = {
     patients: 'QuoteSubmissions',
     // UPDATED: Points to your actual active Wix Form Collection ID
-    inquiries: 'SendUsAMessageAndWellGetBackToYouShortly2',
+    inquiries: 'contact122',
     procedures: 'Procedures'
 }
 
