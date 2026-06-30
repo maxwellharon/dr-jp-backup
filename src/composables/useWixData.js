@@ -16,8 +16,8 @@ const COLLECTIONS = {
 async function fetchCollection(key) {
     const id = COLLECTIONS[key]
     try {
-        // Added &all=true to get every record via backend pagination
-        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true`)
+        // Appended &limit=1000 alongside &all=true to explicitly force Wix's 50-item default limit constraint open
+        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true&limit=1000`)
         if (!res.ok) {
             console.error(`❌ ${key} fetch failed (${res.status})`)
             return []
