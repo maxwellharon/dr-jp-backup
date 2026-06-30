@@ -9,26 +9,52 @@ const error = ref(null)
 
 const COLLECTIONS = {
     patients: 'QuoteSubmissions',
-    inquiries: 'contact122',          // adjust if your Wix collection ID is different
+    inquiries: 'contact122',   // adjust if your Wix collection ID is different
     procedures: 'Procedures'
 }
 
-async function fetchCollection(key) {
+const PAGE_SIZE = 1000  // Wix's maximum per request
+
+/**
+ * Fetches ALL items from a Wix collection by paginating with skip/limit.
+ * Wix defaults to 50 items — this loops until the page is smaller than PAGE_SIZE,
+ * meaning we've reached the last page.
+ */
+async function fetchAllFromCollection(key) {
     const id = COLLECTIONS[key]
-    try {
-        // Appended &limit=1000 alongside &all=true to explicitly force Wix's 50-item default limit constraint open
-        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true&limit=1000`)
-        if (!res.ok) {
-            console.error(`❌ ${key} fetch failed (${res.status})`)
-            return []
+    const allItems = []
+    let skip = 0
+
+    while (true) {
+        try {
+            const url = `/api/wix-data?collection=${encodeURIComponent(id)}&limit=${PAGE_SIZE}&skip=${skip}`
+            const res = await fetch(url)
+
+            if (!res.ok) {
+                console.error(`❌ ${key} fetch failed (${res.status}) at skip=${skip}`)
+                break
+            }
+
+            const json = await res.json()
+            const items = json.items || json.dataItems || []
+
+            allItems.push(...items)
+            console.log(`📦 ${key}: fetched ${items.length} items (skip=${skip}, total so far: ${allItems.length})`)
+
+            // If we got fewer than a full page, we're done
+            if (items.length < PAGE_SIZE) break
+
+            skip += PAGE_SIZE
+        } catch (e) {
+            console.error(`❌ Error fetching ${key} at skip=${skip}:`, e)
+            break
         }
-        const json = await res.json()
-        return json.items || json.dataItems || []
-    } catch (e) {
-        console.error(`❌ Error fetching ${key}:`, e)
-        return []
     }
+
+    return allItems
 }
+
+// ─── Date helper ─────────────────────────────────────────────────────────────
 
 function extractDate(d) {
     if (!d) return null
@@ -37,21 +63,26 @@ function extractDate(d) {
     return null
 }
 
+// ─── Mappers ──────────────────────────────────────────────────────────────────
+
 function mapPatient(item, proceduresList) {
-    // Resolve procedure name from procedureId
     const proc = proceduresList.find(p => p._id === item.procedureId)
-    const procedureName = proc ? (proc.procedureName || proc.title || proc.name) : 'Unknown Procedure'
-    const isNonSurgical = proc ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non')) : false
+    const procedureName = proc
+        ? (proc.procedureName || proc.title || proc.name)
+        : 'Unknown Procedure'
+    const isNonSurgical = proc
+        ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non'))
+        : false
 
     return {
         id: item._id,
         name: item.name || 'Anonymous',
         email: item.email || '',
         phone: item.phone || item.phoneNumber || item.mobile || '—',
-        age: item.age ? Number(item.age) : null,        // may be missing in your form – leave null
+        age: item.age ? Number(item.age) : null,
         Country: item.Country || item.country || 'Kenya',
         selectedProcedure: procedureName,
-        isNonSurgical: isNonSurgical,
+        isNonSurgical,
         bmi: item.bmi ? Number(item.bmi) : null,
         weight: item.weight ? Number(item.weight) : null,
         height: item.height ? Number(item.height) : null,
@@ -84,8 +115,7 @@ function mapProcedure(item) {
     }
 }
 
-// Optional sample data – only used if Wix returns empty
-const SAMPLE_PATIENTS = []   // leave empty to rely 100% on live data
+// ─── Main loader ──────────────────────────────────────────────────────────────
 
 async function loadAll() {
     if (loading.value) return
@@ -93,30 +123,33 @@ async function loadAll() {
     error.value = null
 
     try {
+        // Fetch all three collections in parallel, each paginating internally
         const [rawP, rawI, rawPr] = await Promise.all([
-            fetchCollection('patients'),
-            fetchCollection('inquiries'),
-            fetchCollection('procedures')
+            fetchAllFromCollection('patients'),
+            fetchAllFromCollection('inquiries'),
+            fetchAllFromCollection('procedures')
         ])
 
         procedures.value = rawPr.map(mapProcedure)
+        inquiries.value = rawI.map(mapInquiry)
 
-        // Map inquiries
-        inquiries.value = rawI.length > 0 ? rawI.map(mapInquiry) : []
+        // Patients need the resolved procedures list to map procedureId → name
+        patients.value = rawP.map(p => mapPatient(p, procedures.value))
 
-        // Map patients – pass procedures list to resolve procedureId
-        patients.value = rawP.length > 0
-            ? rawP.map(p => mapPatient(p, procedures.value))
-            : SAMPLE_PATIENTS
-
-        console.log(`✅ Loaded: ${patients.value.length} patients, ${inquiries.value.length} inquiries, ${procedures.value.length} procedures`)
+        console.log(
+            `✅ Done — ${patients.value.length} patients, ` +
+            `${inquiries.value.length} inquiries, ` +
+            `${procedures.value.length} procedures`
+        )
     } catch (e) {
-        console.error('❌ Error loading Wix data:', e)
+        console.error('❌ loadAll error:', e)
         error.value = e.message
     } finally {
         loading.value = false
     }
 }
+
+// ─── Composable export ────────────────────────────────────────────────────────
 
 export function useWixData() {
     onMounted(() => {
