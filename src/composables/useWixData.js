@@ -16,7 +16,7 @@ const COLLECTIONS = {
 async function fetchCollection(key) {
     const id = COLLECTIONS[key]
     try {
-        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}`)
+        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true`)
         if (!res.ok) {
             console.error(`❌ ${key} fetch failed (${res.status})`)
             return []
