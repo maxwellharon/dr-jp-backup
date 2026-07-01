@@ -11,9 +11,7 @@
       
       <div v-if="patient" class="space-y-6">
         <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-900 p-6 md:p-8 rounded-3xl text-white shadow-md border border-slate-800 relative overflow-hidden">
-          <div class="absolute -right-10 -bottom-10 opacity-10 text-[140px] font-bold select-none">
-            PLUS
-          </div>
+          <div class="absolute -right-10 -bottom-10 opacity-10 text-[140px] font-bold select-none">PLUS</div>
           <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 relative z-10">
             <div>
               <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-400/20 mb-2">
@@ -30,27 +28,6 @@
           </div>
         </div>
 
-        <!-- Check‑out status row – NEW -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <span class="text-sm font-medium text-slate-700">Status:</span>
-            <span :class="patient.checkedOut ? 'bg-green-100 text-green-700 border-green-200' : 'bg-slate-100 text-slate-600 border-slate-200'" class="px-3 py-1 rounded-full text-xs font-bold border">
-              {{ patient.checkedOut ? 'Checked Out' : 'Pending' }}
-            </span>
-          </div>
-          <button
-            @click="toggleCheckedOut"
-            :disabled="updating"
-            class="px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2"
-            :class="patient.checkedOut ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' : 'bg-green-600 text-white hover:bg-green-700'"
-          >
-            <i v-if="updating" class="fas fa-spinner animate-spin text-xs"></i>
-            <template v-else>
-              {{ patient.checkedOut ? 'Revert to Pending' : 'Mark as Checked Out' }}
-            </template>
-          </button>
-        </div>
-
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
@@ -61,7 +38,7 @@
               <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Age Profile:</span><span class="font-bold text-slate-800">{{ patient.age }} years old</span></div>
               <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Phone Core:</span><span class="font-bold text-indigo-600 font-mono">{{ patient.phone || '—' }}</span></div>
               <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Origin Country:</span><span class="font-bold text-slate-800 flex items-center gap-1.5"><i class="fas fa-globe-africa text-slate-400"></i> {{ patient.Country || 'Kenya' }}</span></div>
-              <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Nicotine/Vape Habit:</span><span :class="hasSmokingRisk ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-slate-100 text-slate-700'" class="font-bold text-xs px-2.5 py-0.5 rounded-md border">{{ patient.smokeVape || patient.raw?.smokeVape || 'No' }}</span></div>
+              <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Nicotine/Vape Habit:</span><span :class="hasSmokingRisk ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-slate-100 text-slate-700'" class="font-bold text-xs px-2.5 py-0.5 rounded-md border">{{ patient.smokeVape || 'No' }}</span></div>
             </div>
           </div>
 
@@ -76,7 +53,7 @@
                 <span class="text-slate-400 font-medium">Calculated BMI Index:</span>
                 <span :class="bmiColorClass(patient.bmi)" class="font-extrabold px-2 py-0.5 rounded-md text-sm">{{ patient.bmi || '—' }}</span>
               </div>
-              <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Co-morbid Conditions:</span><span class="font-bold text-slate-800 truncate max-w-[150px]" :title="patient.medicalConditions || patient.raw?.medicalConditions || 'No'">{{ patient.medicalConditions || patient.raw?.medicalConditions || 'No' }}</span></div>
+              <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Co-morbid Conditions:</span><span class="font-bold text-slate-800 truncate max-w-[150px]" :title="patient.medicalConditions || 'No'">{{ patient.medicalConditions || 'No' }}</span></div>
             </div>
           </div>
 
@@ -93,7 +70,7 @@
                 </span>
               </div>
               <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Prior History Track:</span><span class="font-bold text-slate-700 text-xs truncate max-w-[150px]" :title="patient.pastSurgeries">{{ patient.pastSurgeries || 'None Declared' }}</span></div>
-              <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Assigned Procedure UUID:</span><span class="font-mono text-[11px] text-slate-400">{{ patient.procedureId || patient.raw?.procedureId || '—' }}</span></div>
+              <div class="flex justify-between items-center"><span class="text-slate-400 font-medium">Assigned Procedure UUID:</span><span class="font-mono text-[11px] text-slate-400">{{ patient.procedureId || '—' }}</span></div>
             </div>
           </div>
 
@@ -104,7 +81,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-6 text-sm">
               <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl">
                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Minimum Evaluation Cost</p>
-                <p class="text-lg font-bold text-slate-700 mt-1">KES {{ formatRawMoneyValue(patient.calculatedMinPrice || patient.raw?.calculatedMinPrice || (patient.calculatedPrice * 0.8)) }}</p>
+                <p class="text-lg font-bold text-slate-700 mt-1">KES {{ formatRawMoneyValue(patient.calculatedMinPrice || patient.calculatedPrice * 0.8) }}</p>
               </div>
               <div class="p-4 bg-indigo-50/60 border border-indigo-100 rounded-xl">
                 <p class="text-xs font-medium text-indigo-500 uppercase tracking-wider">Final Targeted Quoted Price</p>
@@ -112,7 +89,7 @@
               </div>
               <div class="p-4 bg-slate-50 border border-slate-100 rounded-xl">
                 <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Maximum Potential Range</p>
-                <p class="text-lg font-bold text-slate-700 mt-1">KES {{ formatRawMoneyValue(patient.calculatedMaxPrice || patient.raw?.calculatedMaxPrice || (patient.calculatedPrice * 1.2)) }}</p>
+                <p class="text-lg font-bold text-slate-700 mt-1">KES {{ formatRawMoneyValue(patient.calculatedMaxPrice || patient.calculatedPrice * 1.2) }}</p>
               </div>
               <div class="p-4 bg-purple-50/50 border border-purple-100 rounded-xl flex flex-col justify-between">
                 <div>
@@ -170,14 +147,13 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWixData } from '../composables/useWixData'
 import NavBar from '../components/NavBar.vue'
 
 const route = useRoute()
-const { patients, updatePatient } = useWixData()
-const updating = ref(false)
+const { patients } = useWixData()
 
 const patient = computed(() => {
   const currentStack = patients.value || []
@@ -186,30 +162,16 @@ const patient = computed(() => {
 
 const hasSmokingRisk = computed(() => {
   if (!patient.value) return false
-  const targetStr = String(patient.value.smokeVape || patient.value.raw?.smokeVape || '').toLowerCase()
+  const targetStr = String(patient.value.smokeVape || '').toLowerCase()
   return targetStr.includes('yes') || targetStr.includes('true')
 })
 
-const toggleCheckedOut = async () => {
-  if (!patient.value || updating.value) return
-  updating.value = true
-  try {
-    const newStatus = !patient.value.checkedOut
-    await updatePatient(patient.value.id, { checkedOut: newStatus })
-  } catch (e) {
-    alert('Update failed: ' + e.message)
-  } finally {
-    updating.value = false
-  }
-}
-
-// Deep algorithmic AI parsing message engine
 const aiSafetyInsightMessage = computed(() => {
   if (!patient.value) return ''
   const p = patient.value
   const bmiVal = Number(p.bmi || 0)
   const historyStr = String(p.pastSurgeries || '').toLowerCase()
-  const conditionsStr = String(p.medicalConditions || p.raw?.medicalConditions || '').toLowerCase()
+  const conditionsStr = String(p.medicalConditions || '').toLowerCase()
   
   let riskAssessment = `Patient is a ${p.age}-year-old applicant for ${p.selectedProcedure || 'General Consultation'}. `
   
@@ -250,12 +212,10 @@ const formatRawMoneyValue = (price) => {
   return new Intl.NumberFormat('en-KE').format(Math.round(price))
 }
 
-// CRITICAL EXPLICIT REQUIREMENT: HIGH FIDELITY EXACT TIMESTAMP FORMATTER
 const formatHighFidelityTimestamp = (dateStr) => {
   if (!dateStr) return '—'
   const timeInstance = new Date(dateStr)
   if (isNaN(timeInstance.getTime())) return '—'
-  
   return timeInstance.toLocaleString('en-KE', {
     year: 'numeric',
     month: 'long',

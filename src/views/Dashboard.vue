@@ -143,6 +143,7 @@
                 <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Mean BMI</p>
                 <p class="text-2xl font-bold text-emerald-900 mt-1">{{ avgBmi }}</p>
               </div>
+              <!-- Prior Surgeries clickable -->
               <div
                 @click="pastSurgeriesFilter = !pastSurgeriesFilter"
                 class="p-4 rounded-xl bg-amber-50/50 border border-amber-100 cursor-pointer hover:shadow transition"
@@ -152,6 +153,7 @@
                 <p class="text-2xl font-bold text-amber-900 mt-1">{{ surgicalHistoryCount }}</p>
               </div>
             </div>
+            <!-- BMI high risk clickable -->
             <div
               @click="bmiHighRiskFilter = !bmiHighRiskFilter"
               class="mt-4 p-3 rounded-xl border text-xs cursor-pointer hover:shadow transition"
@@ -337,9 +339,8 @@ const isWithinRange = (dateStr) => {
   return true
 }
 const ageInRange = (age, bracket) => {
-  if (age == null) return false
+  if (!age) return false
   const a = Number(age)
-  if (isNaN(a)) return false
   if (bracket === '18-25') return a >= 18 && a <= 25
   if (bracket === '26-35') return a >= 26 && a <= 35
   if (bracket === '36-50') return a >= 36 && a <= 50
@@ -385,13 +386,10 @@ const mostRequestedProc = computed(() => {
   const sorted = Object.entries(map).sort((a, b) => b[1] - a[1])
   return sorted[0]?.[0] || '—'
 })
-
 const averageAge = computed(() => {
-  // use fallback ages (24-46) if real age missing
-  const ages = filteredPatients.value.map(p => Number(p.age)).filter(a => !isNaN(a) && a > 0 && a < 120)
-  return ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 'N/A'
+  const ages = filteredPatients.value.map(p => Number(p?.age || 0)).filter(a => a > 0 && a < 120)
+  return ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 0
 })
-
 const nonSurgicalPercent = computed(() => {
   if (!totalPatients.value) return 0
   const nonSurg = filteredPatients.value.filter(p => p.isNonSurgical).length
@@ -399,15 +397,15 @@ const nonSurgicalPercent = computed(() => {
 })
 const avgWeight = computed(() => {
   const vals = filteredPatients.value.map(p => Number(p?.weight || 0)).filter(w => w > 0 && w < 500)
-  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 'N/A'
+  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0
 })
 const avgHeight = computed(() => {
   const vals = filteredPatients.value.map(p => Number(p?.height || 0)).filter(h => h > 0 && h < 300)
-  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 'N/A'
+  return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) : 0
 })
 const avgBmi = computed(() => {
   const items = filteredPatients.value.map(p => Number(p?.bmi || 0)).filter(b => b >= 10 && b <= 90)
-  return items.length ? (items.reduce((s, v) => s + v, 0) / items.length).toFixed(1) : 'N/A'
+  return items.length ? (items.reduce((s, v) => s + v, 0) / items.length).toFixed(1) : '0.0'
 })
 const bmisOver30 = computed(() => filteredPatients.value.filter(p => Number(p?.bmi || 0) >= 30 && Number(p?.bmi || 0) <= 90).length)
 const surgicalHistoryCount = computed(() => filteredPatients.value.filter(p => {
@@ -428,7 +426,6 @@ const ageDistribution = computed(() => {
   const groups = [0,0,0,0]
   filteredPatients.value.forEach(p => {
     const age = Number(p.age)
-    if (isNaN(age)) return
     if (age >= 18 && age <= 25) groups[0]++
     else if (age >= 26 && age <= 35) groups[1]++
     else if (age >= 36 && age <= 50) groups[2]++
@@ -523,7 +520,7 @@ const openDetailModal = (cardType) => {
       }
       break
     case 'age':
-      patientsSubset = filteredPatients.value.filter(p => p.age !== null && p.age >= 18 && p.age <= 25)
+      patientsSubset = filteredPatients.value.filter(p => Number(p.age) >= 18 && Number(p.age) <= 25)
       title = 'Average Age'
       subtitle = 'Patients 18-25 (youngest bracket)'
       break
