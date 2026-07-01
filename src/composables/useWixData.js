@@ -1,14 +1,32 @@
+// src/composables/useWixData.js
 import { ref, onMounted } from 'vue'
 
 const patients = ref([])
 const inquiries = ref([])
 const procedures = ref([])
 const loading = ref(false)
+const error = ref(null)
 
 const COLLECTIONS = {
     patients: 'QuoteSubmissions',
-    inquiries: 'contact12',       // confirm this matches your Wix collection ID
+    inquiries: 'contact122',          // adjust if your Wix collection ID is different
     procedures: 'Procedures'
+}
+
+async function fetchCollection(key) {
+    const id = COLLECTIONS[key]
+    try {
+        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}`)
+        if (!res.ok) {
+            console.error(`❌ ${key} fetch failed (${res.status})`)
+            return []
+        }
+        const json = await res.json()
+        return json.items || json.dataItems || []
+    } catch (e) {
+        console.error(`❌ Error fetching ${key}:`, e)
+        return []
+    }
 }
 
 function extractDate(d) {
@@ -18,73 +36,29 @@ function extractDate(d) {
     return null
 }
 
-async function fetchCollection(key) {
-    const id = COLLECTIONS[key]
-    try {
-        // Use all=true to get every record, no matter how many
-        const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true`)
-        if (!res.ok) return []
-        const json = await res.json()
-        return json.items || json.dataItems || []
-    } catch (e) {
-        console.error(`❌ Error fetching ${key}:`, e)
-        return []
-    }
-}
-
-function mapPatient(item, proceduresList, rawInquiriesList) {
-    // Resolve procedure name
-    const matchedProc = Array.isArray(proceduresList)
-        ? proceduresList.find(p => p._id === item.procedureId)
-        : null
-    const procedureName = matchedProc
-        ? (matchedProc.procedureName || matchedProc.title || matchedProc.name)
-        : 'General Consultation'
-    const isNonSurg = matchedProc
-        ? Boolean(matchedProc.isNonSurgical || matchedProc.category?.toLowerCase().includes('non'))
-        : false
-
-    // Fallback age (if field is missing) – you can remove this once real age data exists
-    const seed = item._id ? item._id.replace(/[^0-9a-f]/g, '').substring(0, 3) : '0'
-    const fallbackAge = (parseInt(seed, 16) % 22) + 24
-
-    // Phone: first try patient record, then cross‑reference inquiries by email
-    let resolvedPhone = item.phone || item.Phone || item.phoneNumber || item.phoneNo || item.mobile || null
-    if (!resolvedPhone && item.email && Array.isArray(rawInquiriesList)) {
-        const matchedInquiry = rawInquiriesList.find(
-            i => i.email && i.email.toLowerCase().trim() === item.email.toLowerCase().trim()
-        )
-        if (matchedInquiry) {
-            resolvedPhone = matchedInquiry.phone || matchedInquiry.Phone ||
-                matchedInquiry.phoneNumber || matchedInquiry.phoneNo ||
-                matchedInquiry.mobile || null
-        }
-    }
-    // Temporary fallback if still missing – replace with '—' once real data exists
-    if (!resolvedPhone) {
-        const phoneSeed = item._id ? item._id.replace(/[^0-9]/g, '').substring(0, 7) : '5243189'
-        const padded = phoneSeed.padEnd(7, '4')
-        resolvedPhone = `+254 7${padded.substring(0, 2)} ${padded.substring(2, 5)} ${padded.substring(5, 7)}`
-    }
-
-    const checkedOut = item.checkedOut === true || item.checkedOut === 'true'
+function mapPatient(item, proceduresList) {
+    // Resolve procedure name from procedureId
+    const proc = proceduresList.find(p => p._id === item.procedureId)
+    const procedureName = proc ? (proc.procedureName || proc.title || proc.name) : 'Unknown Procedure'
+    const isNonSurgical = proc ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non')) : false
 
     return {
         id: item._id,
-        name: item.name || 'Anonymous Patient',
+        name: item.name || 'Anonymous',
         email: item.email || '',
-        phone: resolvedPhone,
-        age: Number(item.age || fallbackAge),
+        phone: item.phone || item.phoneNumber || item.mobile || '—',
+        age: item.age ? Number(item.age) : null,        // may be missing in your form – leave null
         Country: item.Country || item.country || 'Kenya',
         selectedProcedure: procedureName,
-        isNonSurgical: isNonSurg,
-        bmi: Number(item.bmi) || null,
-        weight: Number(item.weight) || null,
-        height: Number(item.height) || null,
-        pastSurgeries: item.pastSurgeries || 'No',
-        calculatedPrice: Number(item.calculatedFinalCost || 0),
-        createdDate: extractDate(item._createdDate || item.timestamp),
-        checkedOut
+        isNonSurgical: isNonSurgical,
+        bmi: item.bmi ? Number(item.bmi) : null,
+        weight: item.weight ? Number(item.weight) : null,
+        height: item.height ? Number(item.height) : null,
+        pastSurgeries: item.pastSurgeries || '',
+        medicalConditions: item.medicalConditions || '',
+        smokeVape: item.smokeVape || '',
+        calculatedPrice: item.calculatedFinalCost ? Number(item.calculatedFinalCost) : 0,
+        createdDate: extractDate(item.timestamp || item._createdDate)
     }
 }
 
@@ -93,20 +67,31 @@ function mapInquiry(item) {
         id: item._id,
         email: item.email || '',
         subject: item.subject || 'General Inquiry',
-        message: item.yourMessage || item.message || '',
+        message: item.message || item.yourMessage || '',
         createdDate: extractDate(item.submissionTime || item._createdDate)
     }
 }
 
-// (Optional) CRUD operations – the API currently only supports GET.
-// Uncomment these when you add PUT/DELETE support to api/wix-data.js.
+function mapProcedure(item) {
+    return {
+        id: item._id,
+        procedureName: item.procedureName || item.title || item.name || '',
+        category: item.category || '',
+        minPrice: Number(item.minPrice) || 0,
+        maxPrice: Number(item.maxPrice) || 0,
+        description: item.description || ''
+    }
+}
 
-// async function deletePatient(id) { ... }
-// async function updatePatient(id, updatedFields) { ... }
+// Optional sample data – only used if Wix returns empty (fallback removed for now,
+// but you can keep a small set if you like)
+const SAMPLE_PATIENTS = []   // leave empty to rely 100% on live data
 
 async function loadAll() {
     if (loading.value) return
     loading.value = true
+    error.value = null
+
     try {
         const [rawP, rawI, rawPr] = await Promise.all([
             fetchCollection('patients'),
@@ -114,13 +99,20 @@ async function loadAll() {
             fetchCollection('procedures')
         ])
 
-        procedures.value = rawPr
-        inquiries.value = rawI.map(mapInquiry)
-        patients.value = rawP.map(p => mapPatient(p, rawPr, rawI))
+        procedures.value = rawPr.map(mapProcedure)
 
-        console.log(`✅ Loaded — ${patients.value.length} patients, ${inquiries.value.length} inquiries, ${procedures.value.length} procedures`)
+        // Map inquiries
+        inquiries.value = rawI.length > 0 ? rawI.map(mapInquiry) : []
+
+        // Map patients – pass procedures list to resolve procedureId
+        patients.value = rawP.length > 0
+            ? rawP.map(p => mapPatient(p, procedures.value))
+            : SAMPLE_PATIENTS
+
+        console.log(`✅ Loaded: ${patients.value.length} patients, ${inquiries.value.length} inquiries, ${procedures.value.length} procedures`)
     } catch (e) {
-        console.error("❌ Error setting Wix Data stores:", e)
+        console.error('❌ Error loading Wix data:', e)
+        error.value = e.message
     } finally {
         loading.value = false
     }
@@ -138,7 +130,7 @@ export function useWixData() {
         inquiries,
         procedures,
         loading,
+        error,
         refresh: loadAll
-        // deletePatient, updatePatient  // uncomment when API supports them
     }
 }
