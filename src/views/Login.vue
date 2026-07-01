@@ -1,13 +1,11 @@
 <template>
   <div class="min-h-screen flex items-center justify-center bg-gradient-to-tr from-slate-900 via-slate-950 to-indigo-950 p-4 relative overflow-hidden">
-    <!-- Ambient orbs -->
     <div class="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
     <div class="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
     <Transition name="portal" appear>
       <div class="bg-white/95 backdrop-blur-md p-8 md:p-10 rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md space-y-6 relative z-10">
         
-        <!-- Logo -->
         <div class="flex flex-col items-center justify-center text-center space-y-3">
           <div class="w-full bg-slate-900 py-4 px-6 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-950/20 relative group overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-purple-500/5 opacity-50"></div>
@@ -17,7 +15,9 @@
               class="h-12 w-auto object-contain relative z-10 transition-transform duration-300 group-hover:scale-103"
             />
           </div>
-          <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Clinical Workspace Terminal</p>
+          <div>
+            <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">Clinical Workspace Terminal</p>
+          </div>
         </div>
 
         <form @submit.prevent="handleAuthSubmit" class="space-y-4">
@@ -78,6 +78,24 @@
           </div>
         </form>
 
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-slate-200"></div>
+          <span class="flex-shrink mx-4 text-slate-400 text-[10px] font-bold uppercase tracking-widest">or</span>
+          <div class="flex-grow border-t border-slate-200"></div>
+        </div>
+
+        <div>
+          <button 
+            type="button"
+            @click="handleGoogleSignIn"
+            :disabled="loading"
+            class="w-full bg-white text-slate-700 border border-slate-200 py-3.5 rounded-xl font-bold hover:bg-slate-50 transition active:scale-[0.99] shadow-sm flex items-center justify-center gap-2 text-sm disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+          >
+            <i class="fab fa-google text-red-500 text-xs"></i>
+            <span>Continue with Google</span>
+          </button>
+        </div>
+
         <div class="text-center text-xs text-slate-500 pt-1">
           <p v-if="isLogin">
             New clinical terminal context? 
@@ -105,7 +123,12 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { auth } from '../firebase/config'
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth'
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from 'firebase/auth'
 
 const email = ref('')
 const password = ref('')
@@ -115,16 +138,19 @@ const loading = ref(false)
 const showPassword = ref(false)
 const router = useRouter()
 
+// Standard Clear Interface Actions Reset
 const toggleViewMode = () => {
   isLogin.value = !isLogin.value
   errorMsg.value = ''
   password.value = ''
 }
 
+// Unified Form Handler Pipeline (Email/Password)
 const handleAuthSubmit = async () => {
   if (loading.value) return
   errorMsg.value = ''
   loading.value = true
+
   try {
     if (isLogin.value) {
       await signInWithEmailAndPassword(auth, email.value, password.value)
@@ -139,22 +165,52 @@ const handleAuthSubmit = async () => {
   }
 }
 
+// Google Authentication Flow Pipeline
+const handleGoogleSignIn = async () => {
+  if (loading.value) return
+  errorMsg.value = ''
+  loading.value = true
+
+  try {
+    const provider = new GoogleAuthProvider()
+    // Optional: Forces Google account picker to pop up every single time
+    provider.setCustomParameters({ prompt: 'select_account' })
+    
+    await signInWithPopup(auth, provider)
+    await router.push('/dashboard')
+  } catch (err) {
+    errorMsg.value = err.message
+  } finally {
+    loading.value = false
+  }
+}
+
+// Defensive Firebase string validation message translator engine
 const parsedError = computed(() => {
   if (!errorMsg.value) return ''
   const msg = errorMsg.value.toLowerCase()
-  if (msg.includes('auth/invalid-credential') || msg.includes('wrong-password') || msg.includes('user-not-found'))
+  
+  if (msg.includes('auth/invalid-credential') || msg.includes('wrong-password') || msg.includes('user-not-found')) {
     return 'Invalid access signature. Verify details match your registered records.'
-  if (msg.includes('email-already-in-use'))
+  }
+  if (msg.includes('email-already-in-use')) {
     return 'This email register block is already locked by an active administrative terminal account.'
-  if (msg.includes('weak-password'))
+  }
+  if (msg.includes('weak-password')) {
     return 'Security threshold failure: Security password matrices require at least 6 characters.'
-  if (msg.includes('network-request-failed'))
+  }
+  if (msg.includes('network-request-failed')) {
     return 'Cloud connectivity exception: Check your standard physical network infrastructure links.'
+  }
+  if (msg.includes('popup-closed-by-user')) {
+    return 'Authentication cancelled: The Google authorization window was closed manually.'
+  }
   return errorMsg.value.replace('Firebase:', '').trim()
 })
 </script>
 
 <style scoped>
+/* High-Fidelity Fluid Scale Transitions */
 .portal-enter-active {
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -162,6 +218,8 @@ const parsedError = computed(() => {
   opacity: 0;
   transform: translateY(12px) scale(0.98);
 }
+
+/* Micro Feedback Shake Keyframes */
 @keyframes errorShake {
   0%, 100% { transform: translateX(0); }
   20%, 60% { transform: translateX(-4px); }
