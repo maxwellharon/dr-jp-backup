@@ -9,25 +9,36 @@ const error = ref(null)
 
 const COLLECTIONS = {
     patients: 'QuoteSubmissions',
-    inquiries: 'contact122',          // adjust if your Wix collection ID is different
+    inquiries: 'contact122',
     procedures: 'Procedures'
 }
 
-async function fetchCollection(key) {
+/**
+ * Fetches ALL items from a collection.
+ * The backend handles Wix cursor pagination when all=true is passed.
+ */
+async function fetchAllFromCollection(key) {
     const id = COLLECTIONS[key]
     try {
         const res = await fetch(`/api/wix-data?collection=${encodeURIComponent(id)}&all=true`)
+
         if (!res.ok) {
             console.error(`❌ ${key} fetch failed (${res.status})`)
             return []
         }
+
         const json = await res.json()
-        return json.items || json.dataItems || []
+        const items = json.items || json.dataItems || []
+        console.log(`📦 ${key}: ${items.length} items loaded`)
+        return items
+
     } catch (e) {
         console.error(`❌ Error fetching ${key}:`, e)
         return []
     }
 }
+
+// ─── Date helper ──────────────────────────────────────────────────────────────
 
 function extractDate(d) {
     if (!d) return null
@@ -36,21 +47,29 @@ function extractDate(d) {
     return null
 }
 
+// ─── Mappers ──────────────────────────────────────────────────────────────────
+
 function mapPatient(item, proceduresList) {
-    // Resolve procedure name from procedureId
-    const proc = proceduresList.find(p => p._id === item.procedureId)
-    const procedureName = proc ? (proc.procedureName || proc.title || proc.name) : 'Unknown Procedure'
-    const isNonSurgical = proc ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non')) : false
+    // ✅ After mapProcedure(), the field is `id` not `_id`
+    const proc = proceduresList.find(p => p.id === item.procedureId)
+
+    const procedureName = proc
+        ? (proc.procedureName || proc.title || proc.name || 'Unknown Procedure')
+        : 'Unknown Procedure'
+
+    const isNonSurgical = proc
+        ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non'))
+        : false
 
     return {
         id: item._id,
         name: item.name || 'Anonymous',
         email: item.email || '',
         phone: item.phone || item.phoneNumber || item.mobile || '—',
-        age: item.age ? Number(item.age) : null,        // may be missing in your form – leave null
+        age: item.age ? Number(item.age) : null,
         Country: item.Country || item.country || 'Kenya',
         selectedProcedure: procedureName,
-        isNonSurgical: isNonSurgical,
+        isNonSurgical,
         bmi: item.bmi ? Number(item.bmi) : null,
         weight: item.weight ? Number(item.weight) : null,
         height: item.height ? Number(item.height) : null,
@@ -74,18 +93,17 @@ function mapInquiry(item) {
 
 function mapProcedure(item) {
     return {
-        id: item._id,
+        id: item._id,   // ← used by mapPatient's find()
         procedureName: item.procedureName || item.title || item.name || '',
         category: item.category || '',
+        isNonSurgical: item.isNonSurgical || false,
         minPrice: Number(item.minPrice) || 0,
         maxPrice: Number(item.maxPrice) || 0,
         description: item.description || ''
     }
 }
 
-// Optional sample data – only used if Wix returns empty (fallback removed for now,
-// but you can keep a small set if you like)
-const SAMPLE_PATIENTS = []   // leave empty to rely 100% on live data
+// ─── Main loader ──────────────────────────────────────────────────────────────
 
 async function loadAll() {
     if (loading.value) return
@@ -94,29 +112,37 @@ async function loadAll() {
 
     try {
         const [rawP, rawI, rawPr] = await Promise.all([
-            fetchCollection('patients'),
-            fetchCollection('inquiries'),
-            fetchCollection('procedures')
+            fetchAllFromCollection('patients'),
+            fetchAllFromCollection('inquiries'),
+            fetchAllFromCollection('procedures')
         ])
 
+        // Map procedures FIRST — patients need the resolved list
         procedures.value = rawPr.map(mapProcedure)
+        inquiries.value = rawI.map(mapInquiry)
+        patients.value = rawP.map(p => mapPatient(p, procedures.value))
 
-        // Map inquiries
-        inquiries.value = rawI.length > 0 ? rawI.map(mapInquiry) : []
+        console.log(
+            `✅ Done — ${patients.value.length} patients, ` +
+            `${inquiries.value.length} inquiries, ` +
+            `${procedures.value.length} procedures`
+        )
 
-        // Map patients – pass procedures list to resolve procedureId
-        patients.value = rawP.length > 0
-            ? rawP.map(p => mapPatient(p, procedures.value))
-            : SAMPLE_PATIENTS
+        // Debug: show how many resolved vs unknown
+        const unknown = patients.value.filter(p => p.selectedProcedure === 'Unknown Procedure').length
+        if (unknown > 0) {
+            console.warn(`⚠️ ${unknown} patients still have Unknown Procedure — check procedureId matches in Wix`)
+        }
 
-        console.log(`✅ Loaded: ${patients.value.length} patients, ${inquiries.value.length} inquiries, ${procedures.value.length} procedures`)
     } catch (e) {
-        console.error('❌ Error loading Wix data:', e)
+        console.error('❌ loadAll error:', e)
         error.value = e.message
     } finally {
         loading.value = false
     }
 }
+
+// ─── Composable export ────────────────────────────────────────────────────────
 
 export function useWixData() {
     onMounted(() => {
