@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuth } from '../stores/auth'
+import { useAuth } from './stores/auth'
 
 const routes = [
   { path: '/', redirect: '/dashboard' },
@@ -37,6 +37,12 @@ const routes = [
   {
     path: '/analytics',
     component: () => import('../views/Analytics.vue'),
+    meta: { requiresAuth: true }
+  },
+  // 🆕 Reports route
+  {
+    path: '/reports',
+    component: () => import('../views/Reports.vue'),
     meta: { requiresAuth: true }
   }
 ]
