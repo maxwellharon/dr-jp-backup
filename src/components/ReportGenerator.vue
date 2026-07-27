@@ -37,7 +37,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Non‑Surgical</label>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Non-Surgical</label>
           <select v-model="filters.nonSurgical" class="w-full border rounded-xl p-2 text-sm bg-white">
             <option value="">All</option>
             <option value="yes">Yes</option>
@@ -45,7 +45,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">BMI ≥ 30 (High Risk)</label>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">BMI &gt;= 30 (High Risk)</label>
           <select v-model="filters.bmiHighRisk" class="w-full border rounded-xl p-2 text-sm bg-white">
             <option :value="false">No</option>
             <option :value="true">Yes</option>
@@ -156,7 +156,7 @@ const resetFilters = () => {
 
 const formatPrice = (price) => new Intl.NumberFormat('en-KE').format(Math.round(price || 0))
 
-// Excel export (unchanged)
+// Excel export
 const downloadExcel = () => {
   const wsData = filteredData.value.map(item => ({
     Name: item.name,
@@ -165,7 +165,7 @@ const downloadExcel = () => {
     Age: item.age,
     Country: item.country,
     Procedure: item.procedure,
-    'Non‑Surgical': item.isNonSurgical ? 'Yes' : 'Surgical',
+    'Non-Surgical': item.isNonSurgical ? 'Yes' : 'Surgical',
     'Price (KES)': item.price,
     BMI: item.bmi,
     Weight: item.weight,
@@ -180,20 +180,17 @@ const downloadExcel = () => {
   XLSX.writeFile(workbook, `Patient_Report_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
-// ------------------------------------------------------------
-//  BEAUTIFUL PDF REPORT – comprehensive, styled, professional
-// ------------------------------------------------------------
+// ============== PDF GENERATION – NO SPECIAL UNICODE ==============
 const downloadPDF = () => {
   const doc = new jsPDF('p', 'mm', 'a4')
   const now = new Date().toLocaleString('en-KE', { dateStyle: 'full', timeStyle: 'short' })
   const data = filteredData.value
 
-  // ==========  COLOR PALETTE  ==========
   const primary = [30, 41, 59]    // slate-900
   const accent = [79, 70, 229]    // indigo-600
-  const lightBg = [245, 247, 250] // slate-50
+  const lightBg = [245, 247, 250]
 
-  // ==========  HEADER  ==========
+  // ---------- HEADER ----------
   doc.setFillColor(...primary)
   doc.rect(0, 0, 210, 30, 'F')
   doc.setTextColor(255, 255, 255)
@@ -205,7 +202,7 @@ const downloadPDF = () => {
   doc.text('Patient Data Report', 14, 19)
   doc.text(`Generated: ${now}`, 14, 26)
 
-  // ==========  FILTER CRITERIA  ==========
+  // ---------- FILTER CRITERIA ----------
   let y = 38
   doc.setTextColor(...primary)
   doc.setFontSize(13)
@@ -221,18 +218,18 @@ const downloadPDF = () => {
   if (filters.ageMax) filterLines.push(`Age Max: ${filters.ageMax}`)
   if (filters.procedure) filterLines.push(`Procedure: ${filters.procedure}`)
   if (filters.country) filterLines.push(`Country: ${filters.country}`)
-  if (filters.nonSurgical === 'yes') filterLines.push('Non‑Surgical only')
+  if (filters.nonSurgical === 'yes') filterLines.push('Non-Surgical only')
   if (filters.nonSurgical === 'no') filterLines.push('Surgical only')
-  if (filters.bmiHighRisk) filterLines.push('BMI ≥ 30 (High Risk)')
+  if (filters.bmiHighRisk) filterLines.push('BMI >= 30 (High Risk)')
 
-  if (filterLines.length === 0) filterLines.push('No filters applied – showing all records')
+  if (filterLines.length === 0) filterLines.push('No filters applied - showing all records')
 
   filterLines.forEach(line => {
-    doc.text(`• ${line}`, 14, y)
+    doc.text(`- ${line}`, 14, y)
     y += 4.5
   })
 
-  // ==========  SUMMARY STATISTICS  ==========
+  // ---------- EXECUTIVE SUMMARY ----------
   const total = data.length
   const ages = data.map(p => Number(p.age)).filter(a => a > 0 && a < 120)
   const avgAge = ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 0
@@ -241,7 +238,7 @@ const downloadPDF = () => {
   const totalValue = data.reduce((s, p) => s + Number(p.price || 0), 0)
   const avgBmi = data.map(p => Number(p.bmi)).filter(b => b > 10 && b < 90)
   const avgBmiVal = avgBmi.length ? (avgBmi.reduce((s, v) => s + v, 0) / avgBmi.length).toFixed(1) : '0.0'
-  const highBmiCount = data.filter(p => Number(p.bmi) >= 30).length
+  const highBmiCount = data.filter(p => Number(p.bmi) >= 30 && Number(p.bmi) <= 90).length
   const pastSurgCount = data.filter(p => {
     const val = String(p.pastSurgeries || '').toLowerCase()
     return val.includes('yes') || (val.length > 0 && !val.includes('no'))
@@ -266,23 +263,22 @@ const downloadPDF = () => {
   doc.text('Executive Summary', 14, y)
   y += 7
 
-  // KPI Cards (simulated as stacked info)
-  doc.setFontSize(10)
-  const addSummaryRow = (label, value, unit = '') => {
+  // Helper to add a summary row (plain ASCII)
+  const addSummaryRow = (label, value) => {
     doc.setFont('helvetica', 'bold')
-    doc.text(label + ':', 14, y)
+    doc.text(label, 14, y)
     doc.setFont('helvetica', 'normal')
-    doc.text(` ${value} ${unit}`, 50, y)
+    doc.text(value, 60, y)
     y += 6
   }
 
-  addSummaryRow('Total Patients', total)
-  addSummaryRow('Average Age', avgAge, 'years')
-  addSummaryRow('Non‑Surgical %', nonSurgPct + '%')
-  addSummaryRow('Average BMI', avgBmiVal)
-  addSummaryRow('Total Quoted Value', 'KES ' + formatPrice(totalValue))
-  addSummaryRow('BMI ≥ 30 (High Risk)', highBmiCount, 'patients')
-  addSummaryRow('Prior Surgeries', pastSurgCount, 'patients')
+  addSummaryRow('Total Patients:', String(total))
+  addSummaryRow('Average Age:', `${avgAge} years`)
+  addSummaryRow('Non-Surgical %:', `${nonSurgPct}%`)
+  addSummaryRow('Average BMI:', avgBmiVal)
+  addSummaryRow('Total Quoted Value:', `KES ${formatPrice(totalValue)}`)
+  addSummaryRow('BMI >= 30 (High Risk):', `${highBmiCount} patients`)
+  addSummaryRow('Prior Surgeries:', `${pastSurgCount} patients`)
 
   // Top procedures
   y += 4
@@ -291,7 +287,7 @@ const downloadPDF = () => {
   y += 6
   topProcs.forEach(([name, count], idx) => {
     doc.setFont('helvetica', 'normal')
-    doc.text(`${idx + 1}. ${name} – ${count} leads`, 18, y)
+    doc.text(`${idx + 1}. ${name} - ${count} leads`, 18, y)
     y += 5
   })
 
@@ -303,12 +299,12 @@ const downloadPDF = () => {
     y += 6
     topCountries.forEach(([country, cnt]) => {
       doc.setFont('helvetica', 'normal')
-      doc.text(`• ${country}: ${cnt} (${Math.round(cnt / total * 100)}%)`, 18, y)
+      doc.text(`- ${country}: ${cnt} (${Math.round(cnt / total * 100)}%)`, 18, y)
       y += 5
     })
   }
 
-  // ==========  DETAIL TABLE  ==========
+  // ---------- DETAIL TABLE ----------
   y += 8
   doc.setFillColor(...accent)
   doc.rect(14, y - 5, 182, 0.8, 'F')
@@ -325,7 +321,8 @@ const downloadPDF = () => {
     p.country,
     p.procedure,
     formatPrice(p.price),
-    p.bmi || '—'
+    // Cap BMI display for invalid values
+    (Number(p.bmi) > 0 && Number(p.bmi) < 100) ? p.bmi : '—'
   ])
 
   autoTable(doc, {
@@ -348,8 +345,7 @@ const downloadPDF = () => {
       fillColor: lightBg
     },
     margin: { left: 14, right: 14 },
-    didDrawPage: (data) => {
-      // Footer on every page
+    didDrawPage: () => {
       doc.setFontSize(8)
       doc.setTextColor(150)
       doc.text(`Report generated ${now}`, 14, 285)
