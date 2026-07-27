@@ -10,7 +10,7 @@ const routes = [
     { path: '/procedures', component: () => import('./views/Procedures.vue'), meta: { requiresAuth: true } },
     { path: '/inquiries', component: () => import('./views/Inquiries.vue'), meta: { requiresAuth: true } },
     { path: '/analytics', component: () => import('./views/Analytics.vue'), meta: { requiresAuth: true } },
-    // 🆕 Reports route
+    // REPORTS
     { path: '/reports', component: () => import('./views/Reports.vue'), meta: { requiresAuth: true } }
 ]
 
@@ -22,7 +22,6 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
     const { user, authReady } = useAuth()
     await authReady
-
     if (to.meta.requiresAuth && !user.value) {
         next('/login')
     } else if (to.meta.guest && user.value) {
