@@ -4,7 +4,7 @@ import { useWixData } from './useWixData'
 export function useReportGeneration() {
   const { patients } = useWixData()
 
-  // Filters & returns patient records
+  // Apply filters and return mapped records
   const generateReportData = (filters) => {
     let data = patients.value || []
 
@@ -58,7 +58,7 @@ export function useReportGeneration() {
     }))
   }
 
-  // Generate AI-style insights from any patient array
+  // Generate AI-style insights from a data array
   const generateInsights = (data) => {
     if (!data.length) return null
 
@@ -122,7 +122,6 @@ export function useReportGeneration() {
     }
   }
 
-  // Get unique values for filters
   const getUniqueProcedures = () => {
     const set = new Set()
       ; (patients.value || []).forEach(p => {

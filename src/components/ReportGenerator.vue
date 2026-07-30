@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6">
-    <!-- Filter Panel (unchanged) -->
+    <!-- Filter Panel -->
     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
       <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
         <i class="fas fa-filter text-indigo-500"></i> Report Filters
@@ -37,7 +37,7 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-slate-500 mb-1">Non-Surgical</label>
+          <label class="block text-xs font-semibold text-slate-500 mb-1">Non‑Surgical</label>
           <select v-model="filters.nonSurgical" class="w-full border rounded-xl p-2 text-sm bg-white">
             <option value="">All</option>
             <option value="yes">Yes</option>
@@ -161,7 +161,7 @@ const downloadExcel = () => {
   const data = filteredData.value
   const insights = generateInsights(data)
 
-  // --- Main data sheet ---
+  // Main data sheet
   const wsData = data.map(item => ({
     Name: item.name,
     Email: item.email,
@@ -179,7 +179,7 @@ const downloadExcel = () => {
   }))
   const mainSheet = XLSX.utils.json_to_sheet(wsData)
 
-  // --- Summary sheet ---
+  // Summary sheet
   let summaryRows = [['AI-Generated Insights', '']]
   if (insights) {
     summaryRows.push(['Total Patients', insights.total])
@@ -212,7 +212,7 @@ const downloadExcel = () => {
   XLSX.writeFile(workbook, `Patient_Report_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
-// PDF export with AI Insights section
+// PDF export with AI Insights section (no special characters)
 const downloadPDF = () => {
   const data = filteredData.value
   const insights = generateInsights(data)
@@ -286,7 +286,7 @@ const downloadPDF = () => {
     addRow('Average BMI:', insights.avgBmi)
     addRow('Total Quoted Value:', `KES ${formatPrice(insights.totalValue)}`)
     addRow('Average Quote Value:', `KES ${formatPrice(insights.avgValue)}`)
-    addRow('High BMI (>=30):', `${insights.highBmiCount} patients`)
+    addRow('BMI >= 30 (High Risk):', `${insights.highBmiCount} patients`)
     addRow('Prior Surgeries:', `${insights.pastSurgCount} patients`)
 
     y += 4
@@ -318,13 +318,12 @@ const downloadPDF = () => {
       y += 5
     })
 
-    // Monthly Trend (simplified table)
+    // Monthly Trend
     if (insights.monthlyTrend.length) {
       y += 6
       doc.setFont('helvetica', 'bold')
       doc.text('Monthly Registration Trend', 14, y)
       y += 6
-      // Simple two-column layout
       insights.monthlyTrend.forEach(([month, cnt]) => {
         doc.setFont('helvetica', 'normal')
         doc.text(`${month}: ${cnt}`, 18, y)
