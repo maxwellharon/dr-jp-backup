@@ -214,12 +214,12 @@ const downloadExcel = () => {
   XLSX.writeFile(workbook, `Patient_Report_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
-// ------------------------- PDF export -------------------------
+// ------------------------- PDF export (with charts + summary + insights) -------------------------
 const downloadPDF = async () => {
   const data = filteredData.value
   const insights = generateInsights(data)
 
-  // Compute distribution data for charts
+  // Compute chart data
   const procedureCounts = {}
   data.forEach(p => {
     const proc = p.procedure || 'Unknown'
@@ -260,10 +260,9 @@ const downloadPDF = async () => {
   const monthLabels = Object.keys(regMonths).sort()
   const monthValues = monthLabels.map(m => regMonths[m])
 
-  // Chart colors
   const chartColors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16','#14b8a6','#f97316']
 
-  // Helper to create chart image from config
+  // Helper to create a chart image
   const chartToImage = (config, width = 600, height = 300) => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas')
@@ -275,87 +274,46 @@ const downloadPDF = async () => {
         const url = canvas.toDataURL('image/png')
         chart.destroy()
         resolve(url)
-      }, 300) // wait for render
+      }, 300)
     })
   }
 
-  // Procedure bar chart
   const procChartConfig = {
     type: 'bar',
     data: {
       labels: procLabels,
-      datasets: [{
-        label: 'Requests',
-        data: procValues,
-        backgroundColor: '#818cf8',
-        borderRadius: 8
-      }]
+      datasets: [{ label: 'Requests', data: procValues, backgroundColor: '#818cf8', borderRadius: 8 }]
     },
-    options: {
-      responsive: false,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
-    }
+    options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   }
 
-  // Country pie chart
   const countryChartConfig = {
     type: 'pie',
     data: {
       labels: countryLabels,
-      datasets: [{
-        data: countryValues,
-        backgroundColor: chartColors.slice(0, countryLabels.length),
-        borderWidth: 0
-      }]
+      datasets: [{ data: countryValues, backgroundColor: chartColors.slice(0, countryLabels.length), borderWidth: 0 }]
     },
-    options: {
-      responsive: false,
-      plugins: { legend: { position: 'bottom' } }
-    }
+    options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
   }
 
-  // Age distribution bar
   const ageChartConfig = {
     type: 'bar',
     data: {
       labels: ageLabels,
-      datasets: [{
-        label: 'Patients',
-        data: ageValues,
-        backgroundColor: '#6366f1',
-        borderRadius: 8
-      }]
+      datasets: [{ label: 'Patients', data: ageValues, backgroundColor: '#6366f1', borderRadius: 8 }]
     },
-    options: {
-      responsive: false,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
-    }
+    options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   }
 
-  // Registration timeline line chart
   const regChartConfig = {
     type: 'line',
     data: {
       labels: monthLabels,
-      datasets: [{
-        label: 'New Patients',
-        data: monthValues,
-        fill: false,
-        borderColor: '#10b981',
-        tension: 0.1,
-        pointBackgroundColor: '#10b981'
-      }]
+      datasets: [{ label: 'New Patients', data: monthValues, fill: false, borderColor: '#10b981', tension: 0.1, pointBackgroundColor: '#10b981' }]
     },
-    options: {
-      responsive: false,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true } }
-    }
+    options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
   }
 
-  // Generate all chart images in parallel
   const [procImg, countryImg, ageImg, regImg] = await Promise.all([
     chartToImage(procChartConfig, 600, 300),
     chartToImage(countryChartConfig, 400, 280),
@@ -408,10 +366,9 @@ const downloadPDF = async () => {
     y += 4.5
   })
 
-  // --- AI INSIGHTS SECTION (text + charts) ---
+  // --- AI CLINICAL ANALYTICS (narrative cards) ---
   y += 6
   if (insights) {
-    // Section title
     doc.setFillColor(...accent)
     doc.rect(14, y - 5, 182, 0.8, 'F')
     y += 4
@@ -420,7 +377,6 @@ const downloadPDF = async () => {
     doc.text('AI Clinical Analytics & Strategy', 14, y)
     y += 8
 
-    // Insight cards (like Analytics page)
     const insightCards = [
       {
         title: 'Procedure Demand Surge',
@@ -449,12 +405,11 @@ const downloadPDF = async () => {
     ]
 
     insightCards.forEach(card => {
-      // Check if we need a new page (if not enough space for this card + 20mm)
       if (y > 250) {
         doc.addPage()
         y = 20
       }
-      doc.setFillColor(248, 250, 252) // very light grey
+      doc.setFillColor(248, 250, 252)
       doc.roundedRect(14, y, 182, 22, 3, 3, 'F')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(10)
@@ -467,7 +422,7 @@ const downloadPDF = async () => {
       y += 24
     })
 
-    // Charts section
+    // --- DETAILED AI INSIGHTS SUMMARY (the block user wants) ---
     y += 6
     doc.setFillColor(...accent)
     doc.rect(14, y - 5, 182, 0.8, 'F')
@@ -475,19 +430,81 @@ const downloadPDF = async () => {
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...primary)
+    doc.text('AI-Generated Insights Summary', 14, y)
+    y += 8
+
+    const summaryData = [
+      ['Total Patients:', String(insights.total)],
+      ['Average Age:', `${insights.avgAge} years`],
+      ['Non-Surgical %:', `${insights.nonSurgPercent}%`],
+      ['Average BMI:', insights.avgBmi],
+      ['Total Quoted Value:', `KES ${formatPrice(insights.totalValue)}`],
+      ['Average Quote Value:', `KES ${formatPrice(insights.avgValue)}`],
+      ['BMI >= 30 (High Risk):', `${insights.highBmiCount} patients`],
+      ['Prior Surgeries:', `${insights.pastSurgCount} patients`],
+      ['Most Requested Procedure:', insights.mostRequested]
+    ]
+
+    doc.setFontSize(10)
+    summaryData.forEach(([label, value]) => {
+      if (y > 270) { doc.addPage(); y = 20 }
+      doc.setFont('helvetica', 'bold')
+      doc.text(label, 18, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(value, 70, y)
+      y += 6
+    })
+
+    // Top 5 Procedures
+    y += 2
+    doc.setFont('helvetica', 'bold')
+    doc.text('Top 5 Requested Procedures:', 18, y)
+    y += 6
+    insights.topProcedures.forEach(([name, count], idx) => {
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${idx + 1}. ${name} - ${count} leads`, 22, y)
+      y += 5
+    })
+
+    // Geographic Distribution
+    y += 2
+    doc.setFont('helvetica', 'bold')
+    doc.text('Geographic Distribution:', 18, y)
+    y += 6
+    insights.countryDistribution.forEach(([country, cnt]) => {
+      const pct = Math.round(cnt / insights.total * 100)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`- ${country}: ${cnt} (${pct}%)`, 22, y)
+      y += 5
+    })
+
+    // Monthly Registration Trend
+    if (insights.monthlyTrend.length) {
+      y += 2
+      doc.setFont('helvetica', 'bold')
+      doc.text('Monthly Registration Trend:', 18, y)
+      y += 6
+      insights.monthlyTrend.forEach(([month, cnt]) => {
+        doc.setFont('helvetica', 'normal')
+        doc.text(`${month}: ${cnt}`, 22, y)
+        y += 5
+      })
+    }
+
+    // --- CHARTS ---
+    y += 8
+    doc.setFillColor(...accent)
+    doc.rect(14, y - 5, 182, 0.8, 'F')
+    y += 4
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
     doc.text('Visual Data Insights', 14, y)
     y += 10
 
-    // Layout: two charts per row, each 88mm wide
     const chartWidth = 88
-    const rowHeight = 60
-
-    // Row 1: Procedures (bar) and Country (pie)
     doc.addImage(procImg, 'PNG', 14, y, chartWidth, 50)
     doc.addImage(countryImg, 'PNG', 14 + chartWidth + 6, y, chartWidth, 50)
     y += 55
-
-    // Row 2: Age distribution (bar) and Registrations (line)
     doc.addImage(ageImg, 'PNG', 14, y, chartWidth, 45)
     doc.addImage(regImg, 'PNG', 14 + chartWidth + 6, y, chartWidth, 45)
     y += 55
@@ -498,7 +515,7 @@ const downloadPDF = async () => {
     y += 10
   }
 
-  // --- DETAILED TABLE (on a new page) ---
+  // --- DETAILED PATIENT RECORDS (new page) ---
   doc.addPage()
   y = 20
   doc.setFontSize(14)
