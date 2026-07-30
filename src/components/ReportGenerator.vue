@@ -115,6 +115,8 @@ import { useReportGeneration } from '../composables/useReportGeneration'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { Chart, registerables } from 'chart.js'
+Chart.register(...registerables)
 
 const { generateReportData, generateInsights, getUniqueProcedures, getUniqueCountries } = useReportGeneration()
 
@@ -156,7 +158,7 @@ const resetFilters = () => {
 
 const formatPrice = (price) => new Intl.NumberFormat('en-KE').format(Math.round(price || 0))
 
-// Excel export with AI Summary sheet
+// ------------------------- Excel export -------------------------
 const downloadExcel = () => {
   const data = filteredData.value
   const insights = generateInsights(data)
@@ -212,18 +214,164 @@ const downloadExcel = () => {
   XLSX.writeFile(workbook, `Patient_Report_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
-// PDF export with AI Insights section (no special characters)
-const downloadPDF = () => {
+// ------------------------- PDF export -------------------------
+const downloadPDF = async () => {
   const data = filteredData.value
   const insights = generateInsights(data)
+
+  // Compute distribution data for charts
+  const procedureCounts = {}
+  data.forEach(p => {
+    const proc = p.procedure || 'Unknown'
+    procedureCounts[proc] = (procedureCounts[proc] || 0) + 1
+  })
+  const procLabels = Object.keys(procedureCounts).sort((a,b) => procedureCounts[b] - procedureCounts[a])
+  const procValues = procLabels.map(l => procedureCounts[l])
+
+  const countryCounts = {}
+  data.forEach(p => {
+    const c = p.country || 'Unknown'
+    countryCounts[c] = (countryCounts[c] || 0) + 1
+  })
+  const countryLabels = Object.keys(countryCounts).sort((a,b) => countryCounts[b] - countryCounts[a])
+  const countryValues = countryLabels.map(l => countryCounts[l])
+
+  const ageGroups = { '18-25': 0, '26-35': 0, '36-50': 0, '51+': 0 }
+  data.forEach(p => {
+    const age = Number(p.age)
+    if (age >= 18 && age <= 25) ageGroups['18-25']++
+    else if (age >= 26 && age <= 35) ageGroups['26-35']++
+    else if (age >= 36 && age <= 50) ageGroups['36-50']++
+    else if (age > 50) ageGroups['51+']++
+  })
+  const ageLabels = Object.keys(ageGroups)
+  const ageValues = Object.values(ageGroups)
+
+  const regMonths = {}
+  data.forEach(p => {
+    if (p.createdDate) {
+      const d = new Date(p.createdDate)
+      if (!isNaN(d.getTime())) {
+        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+        regMonths[key] = (regMonths[key] || 0) + 1
+      }
+    }
+  })
+  const monthLabels = Object.keys(regMonths).sort()
+  const monthValues = monthLabels.map(m => regMonths[m])
+
+  // Chart colors
+  const chartColors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16','#14b8a6','#f97316']
+
+  // Helper to create chart image from config
+  const chartToImage = (config, width = 600, height = 300) => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      const chart = new Chart(ctx, config)
+      setTimeout(() => {
+        const url = canvas.toDataURL('image/png')
+        chart.destroy()
+        resolve(url)
+      }, 300) // wait for render
+    })
+  }
+
+  // Procedure bar chart
+  const procChartConfig = {
+    type: 'bar',
+    data: {
+      labels: procLabels,
+      datasets: [{
+        label: 'Requests',
+        data: procValues,
+        backgroundColor: '#818cf8',
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  }
+
+  // Country pie chart
+  const countryChartConfig = {
+    type: 'pie',
+    data: {
+      labels: countryLabels,
+      datasets: [{
+        data: countryValues,
+        backgroundColor: chartColors.slice(0, countryLabels.length),
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  }
+
+  // Age distribution bar
+  const ageChartConfig = {
+    type: 'bar',
+    data: {
+      labels: ageLabels,
+      datasets: [{
+        label: 'Patients',
+        data: ageValues,
+        backgroundColor: '#6366f1',
+        borderRadius: 8
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  }
+
+  // Registration timeline line chart
+  const regChartConfig = {
+    type: 'line',
+    data: {
+      labels: monthLabels,
+      datasets: [{
+        label: 'New Patients',
+        data: monthValues,
+        fill: false,
+        borderColor: '#10b981',
+        tension: 0.1,
+        pointBackgroundColor: '#10b981'
+      }]
+    },
+    options: {
+      responsive: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  }
+
+  // Generate all chart images in parallel
+  const [procImg, countryImg, ageImg, regImg] = await Promise.all([
+    chartToImage(procChartConfig, 600, 300),
+    chartToImage(countryChartConfig, 400, 280),
+    chartToImage(ageChartConfig, 600, 250),
+    chartToImage(regChartConfig, 600, 250)
+  ])
+
+  // Build PDF
   const doc = new jsPDF('p', 'mm', 'a4')
   const now = new Date().toLocaleString('en-KE', { dateStyle: 'full', timeStyle: 'short' })
-
   const primary = [30, 41, 59]
   const accent = [79, 70, 229]
   const lightBg = [245, 247, 250]
+  let y = 0
 
-  // ---------- HEADER ----------
+  // --- HEADER ---
   doc.setFillColor(...primary)
   doc.rect(0, 0, 210, 30, 'F')
   doc.setTextColor(255, 255, 255)
@@ -234,9 +382,9 @@ const downloadPDF = () => {
   doc.setFont('helvetica', 'normal')
   doc.text('Patient Data Report with AI Insights', 14, 19)
   doc.text(`Generated: ${now}`, 14, 26)
+  y = 38
 
-  // ---------- FILTER CRITERIA ----------
-  let y = 38
+  // --- FILTER CRITERIA ---
   doc.setTextColor(...primary)
   doc.setFontSize(13)
   doc.setFont('helvetica', 'bold')
@@ -260,90 +408,102 @@ const downloadPDF = () => {
     y += 4.5
   })
 
-  // ---------- AI INSIGHTS ----------
+  // --- AI INSIGHTS SECTION (text + charts) ---
+  y += 6
   if (insights) {
+    // Section title
+    doc.setFillColor(...accent)
+    doc.rect(14, y - 5, 182, 0.8, 'F')
+    y += 4
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('AI Clinical Analytics & Strategy', 14, y)
+    y += 8
+
+    // Insight cards (like Analytics page)
+    const insightCards = [
+      {
+        title: 'Procedure Demand Surge',
+        message: `${insights.mostRequested} leads your database, accounting for ${Math.round((insights.topProcedures[0]?.[1] || 0) / insights.total * 100)}% of total inquiries. Ensure resource and inventory optimization for this segment.`
+      },
+      {
+        title: 'Targeted Age Demographic',
+        message: `The current dataset yields an average age of ${insights.avgAge} years. The 26–35 distribution bracket demonstrates the sharpest customer lifecycle conversion velocity.`
+      },
+      {
+        title: 'Care Classification Footprint',
+        message: `${insights.nonSurgPercent}% of inbound leads requested non-surgical alternatives. Adding tiered skin-tightening or injectables packaging could capture unrealized revenue.`
+      },
+      {
+        title: 'Geographic Footprint Opportunity',
+        message: `The high concentration of submissions originates from ${insights.countryDistribution[0]?.[0] || 'Kenya'}. Localized hyper-targeted clinical marketing and localized SEO focus will optimize conversion cost.`
+      },
+      {
+        title: 'Asset Conversion Strategy',
+        message: `Average transaction pricing maps at KES ${formatPrice(insights.avgValue)}. Integrating flexible multi-installment healthcare financing structures could reduce drop-off.`
+      },
+      {
+        title: 'Patient Risk Profiling Matrix',
+        message: `${insights.highBmiCount} prospective clients present a calculated BMI >= 30.0, and ${insights.pastSurgCount} note surgical backgrounds. Automated pre-anesthetic tracking flags are recommended.`
+      }
+    ]
+
+    insightCards.forEach(card => {
+      // Check if we need a new page (if not enough space for this card + 20mm)
+      if (y > 250) {
+        doc.addPage()
+        y = 20
+      }
+      doc.setFillColor(248, 250, 252) // very light grey
+      doc.roundedRect(14, y, 182, 22, 3, 3, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(...primary)
+      doc.text(card.title, 18, y + 6)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(100)
+      doc.text(card.message, 18, y + 12, { maxWidth: 174 })
+      y += 24
+    })
+
+    // Charts section
     y += 6
     doc.setFillColor(...accent)
     doc.rect(14, y - 5, 182, 0.8, 'F')
     y += 4
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
-    doc.text('AI-Generated Insights', 14, y)
-    y += 8
+    doc.setTextColor(...primary)
+    doc.text('Visual Data Insights', 14, y)
+    y += 10
 
-    const addRow = (label, value) => {
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.text(label, 14, y)
-      doc.setFont('helvetica', 'normal')
-      doc.text(value, 65, y)
-      y += 6
-    }
+    // Layout: two charts per row, each 88mm wide
+    const chartWidth = 88
+    const rowHeight = 60
 
-    addRow('Total Patients:', String(insights.total))
-    addRow('Average Age:', `${insights.avgAge} years`)
-    addRow('Non-Surgical %:', `${insights.nonSurgPercent}%`)
-    addRow('Average BMI:', insights.avgBmi)
-    addRow('Total Quoted Value:', `KES ${formatPrice(insights.totalValue)}`)
-    addRow('Average Quote Value:', `KES ${formatPrice(insights.avgValue)}`)
-    addRow('BMI >= 30 (High Risk):', `${insights.highBmiCount} patients`)
-    addRow('Prior Surgeries:', `${insights.pastSurgCount} patients`)
+    // Row 1: Procedures (bar) and Country (pie)
+    doc.addImage(procImg, 'PNG', 14, y, chartWidth, 50)
+    doc.addImage(countryImg, 'PNG', 14 + chartWidth + 6, y, chartWidth, 50)
+    y += 55
 
-    y += 4
-    doc.setFont('helvetica', 'bold')
-    doc.text('Most Requested Procedure:', 14, y)
-    doc.setFont('helvetica', 'normal')
-    doc.text(insights.mostRequested, 65, y)
-    y += 8
-
-    // Top 5 Procedures
-    doc.setFont('helvetica', 'bold')
-    doc.text('Top 5 Requested Procedures', 14, y)
-    y += 6
-    doc.setFont('helvetica', 'normal')
-    insights.topProcedures.forEach(([name, count], idx) => {
-      doc.text(`${idx + 1}. ${name} - ${count} leads`, 18, y)
-      y += 5
-    })
-
-    // Country Distribution
-    y += 4
-    doc.setFont('helvetica', 'bold')
-    doc.text('Geographic Distribution', 14, y)
-    y += 6
-    doc.setFont('helvetica', 'normal')
-    insights.countryDistribution.forEach(([country, cnt]) => {
-      const pct = Math.round(cnt / insights.total * 100)
-      doc.text(`- ${country}: ${cnt} (${pct}%)`, 18, y)
-      y += 5
-    })
-
-    // Monthly Trend
-    if (insights.monthlyTrend.length) {
-      y += 6
-      doc.setFont('helvetica', 'bold')
-      doc.text('Monthly Registration Trend', 14, y)
-      y += 6
-      insights.monthlyTrend.forEach(([month, cnt]) => {
-        doc.setFont('helvetica', 'normal')
-        doc.text(`${month}: ${cnt}`, 18, y)
-        y += 5
-      })
-    }
+    // Row 2: Age distribution (bar) and Registrations (line)
+    doc.addImage(ageImg, 'PNG', 14, y, chartWidth, 45)
+    doc.addImage(regImg, 'PNG', 14 + chartWidth + 6, y, chartWidth, 45)
+    y += 55
   } else {
-    y += 6
     doc.setFont('helvetica', 'italic')
-    doc.text('Insufficient data to generate insights.', 14, y)
-    y += 8
+    doc.setTextColor(100)
+    doc.text('Insufficient data to generate AI insights.', 14, y)
+    y += 10
   }
 
-  // ---------- DETAIL TABLE ----------
-  y += 8
-  doc.setFillColor(...accent)
-  doc.rect(14, y - 5, 182, 0.8, 'F')
-  y += 4
+  // --- DETAILED TABLE (on a new page) ---
+  doc.addPage()
+  y = 20
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...primary)
   doc.text('Detailed Patient Records', 14, y)
   y += 8
 
