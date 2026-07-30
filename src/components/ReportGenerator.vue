@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6">
-    <!-- Filter Panel -->
+    <!-- Filter Panel (unchanged) -->
     <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
       <h3 class="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2">
         <i class="fas fa-filter text-indigo-500"></i> Report Filters
@@ -116,7 +116,7 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-const { generateReportData, getUniqueProcedures, getUniqueCountries } = useReportGeneration()
+const { generateReportData, generateInsights, getUniqueProcedures, getUniqueCountries } = useReportGeneration()
 
 const filters = reactive({
   dateFrom: '',
@@ -156,9 +156,13 @@ const resetFilters = () => {
 
 const formatPrice = (price) => new Intl.NumberFormat('en-KE').format(Math.round(price || 0))
 
-// Excel export
+// Excel export with AI Summary sheet
 const downloadExcel = () => {
-  const wsData = filteredData.value.map(item => ({
+  const data = filteredData.value
+  const insights = generateInsights(data)
+
+  // --- Main data sheet ---
+  const wsData = data.map(item => ({
     Name: item.name,
     Email: item.email,
     Phone: item.phone,
@@ -173,21 +177,50 @@ const downloadExcel = () => {
     'Past Surgeries': item.pastSurgeries,
     'Submission Date': item.createdDate ? new Date(item.createdDate).toLocaleDateString() : ''
   }))
+  const mainSheet = XLSX.utils.json_to_sheet(wsData)
 
-  const worksheet = XLSX.utils.json_to_sheet(wsData)
+  // --- Summary sheet ---
+  let summaryRows = [['AI-Generated Insights', '']]
+  if (insights) {
+    summaryRows.push(['Total Patients', insights.total])
+    summaryRows.push(['Average Age', insights.avgAge + ' years'])
+    summaryRows.push(['Non-Surgical %', insights.nonSurgPercent + '%'])
+    summaryRows.push(['Average BMI', insights.avgBmi])
+    summaryRows.push(['Total Quoted Value (KES)', formatPrice(insights.totalValue)])
+    summaryRows.push(['Average Quote Value (KES)', formatPrice(insights.avgValue)])
+    summaryRows.push(['BMI >= 30 (High Risk)', insights.highBmiCount + ' patients'])
+    summaryRows.push(['Prior Surgeries', insights.pastSurgCount + ' patients'])
+    summaryRows.push(['Most Requested Procedure', insights.mostRequested])
+    summaryRows.push([])
+    summaryRows.push(['Top 5 Procedures', 'Count'])
+    insights.topProcedures.forEach(([name, count]) => summaryRows.push([name, count]))
+    summaryRows.push([])
+    summaryRows.push(['Country', 'Count', 'Percent'])
+    insights.countryDistribution.forEach(([country, cnt]) => {
+      const pct = Math.round(cnt / insights.total * 100)
+      summaryRows.push([country, cnt, pct + '%'])
+    })
+    summaryRows.push([])
+    summaryRows.push(['Monthly Registrations', 'Count'])
+    insights.monthlyTrend.forEach(([month, cnt]) => summaryRows.push([month, cnt]))
+  }
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows)
+
   const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Report')
+  XLSX.utils.book_append_sheet(workbook, mainSheet, 'Patient Data')
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'AI Insights')
   XLSX.writeFile(workbook, `Patient_Report_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
-// ============== PDF GENERATION – NO SPECIAL UNICODE ==============
+// PDF export with AI Insights section
 const downloadPDF = () => {
+  const data = filteredData.value
+  const insights = generateInsights(data)
   const doc = new jsPDF('p', 'mm', 'a4')
   const now = new Date().toLocaleString('en-KE', { dateStyle: 'full', timeStyle: 'short' })
-  const data = filteredData.value
 
-  const primary = [30, 41, 59]    // slate-900
-  const accent = [79, 70, 229]    // indigo-600
+  const primary = [30, 41, 59]
+  const accent = [79, 70, 229]
   const lightBg = [245, 247, 250]
 
   // ---------- HEADER ----------
@@ -199,7 +232,7 @@ const downloadPDF = () => {
   doc.text('DR. JP OGALO CLINIC', 14, 12)
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text('Patient Data Report', 14, 19)
+  doc.text('Patient Data Report with AI Insights', 14, 19)
   doc.text(`Generated: ${now}`, 14, 26)
 
   // ---------- FILTER CRITERIA ----------
@@ -221,87 +254,88 @@ const downloadPDF = () => {
   if (filters.nonSurgical === 'yes') filterLines.push('Non-Surgical only')
   if (filters.nonSurgical === 'no') filterLines.push('Surgical only')
   if (filters.bmiHighRisk) filterLines.push('BMI >= 30 (High Risk)')
-
   if (filterLines.length === 0) filterLines.push('No filters applied - showing all records')
-
   filterLines.forEach(line => {
     doc.text(`- ${line}`, 14, y)
     y += 4.5
   })
 
-  // ---------- EXECUTIVE SUMMARY ----------
-  const total = data.length
-  const ages = data.map(p => Number(p.age)).filter(a => a > 0 && a < 120)
-  const avgAge = ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 0
-  const nonSurgCount = data.filter(p => p.isNonSurgical).length
-  const nonSurgPct = total ? Math.round((nonSurgCount / total) * 100) : 0
-  const totalValue = data.reduce((s, p) => s + Number(p.price || 0), 0)
-  const avgBmi = data.map(p => Number(p.bmi)).filter(b => b > 10 && b < 90)
-  const avgBmiVal = avgBmi.length ? (avgBmi.reduce((s, v) => s + v, 0) / avgBmi.length).toFixed(1) : '0.0'
-  const highBmiCount = data.filter(p => Number(p.bmi) >= 30 && Number(p.bmi) <= 90).length
-  const pastSurgCount = data.filter(p => {
-    const val = String(p.pastSurgeries || '').toLowerCase()
-    return val.includes('yes') || (val.length > 0 && !val.includes('no'))
-  }).length
-
-  // Top 5 procedures
-  const procMap = new Map()
-  data.forEach(p => procMap.set(p.procedure, (procMap.get(p.procedure) || 0) + 1))
-  const topProcs = [...procMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-
-  // Country distribution
-  const countryMap = new Map()
-  data.forEach(p => countryMap.set(p.country, (countryMap.get(p.country) || 0) + 1))
-  const topCountries = [...countryMap.entries()].sort((a, b) => b[1] - a[1])
-
-  y += 8
-  doc.setFillColor(...accent)
-  doc.rect(14, y - 5, 182, 0.8, 'F')
-  y += 4
-  doc.setFontSize(13)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Executive Summary', 14, y)
-  y += 7
-
-  // Helper to add a summary row (plain ASCII)
-  const addSummaryRow = (label, value) => {
-    doc.setFont('helvetica', 'bold')
-    doc.text(label, 14, y)
-    doc.setFont('helvetica', 'normal')
-    doc.text(value, 60, y)
+  // ---------- AI INSIGHTS ----------
+  if (insights) {
     y += 6
-  }
+    doc.setFillColor(...accent)
+    doc.rect(14, y - 5, 182, 0.8, 'F')
+    y += 4
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.text('AI-Generated Insights', 14, y)
+    y += 8
 
-  addSummaryRow('Total Patients:', String(total))
-  addSummaryRow('Average Age:', `${avgAge} years`)
-  addSummaryRow('Non-Surgical %:', `${nonSurgPct}%`)
-  addSummaryRow('Average BMI:', avgBmiVal)
-  addSummaryRow('Total Quoted Value:', `KES ${formatPrice(totalValue)}`)
-  addSummaryRow('BMI >= 30 (High Risk):', `${highBmiCount} patients`)
-  addSummaryRow('Prior Surgeries:', `${pastSurgCount} patients`)
+    const addRow = (label, value) => {
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.text(label, 14, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(value, 65, y)
+      y += 6
+    }
 
-  // Top procedures
-  y += 4
-  doc.setFont('helvetica', 'bold')
-  doc.text('Top 5 Requested Procedures', 14, y)
-  y += 6
-  topProcs.forEach(([name, count], idx) => {
+    addRow('Total Patients:', String(insights.total))
+    addRow('Average Age:', `${insights.avgAge} years`)
+    addRow('Non-Surgical %:', `${insights.nonSurgPercent}%`)
+    addRow('Average BMI:', insights.avgBmi)
+    addRow('Total Quoted Value:', `KES ${formatPrice(insights.totalValue)}`)
+    addRow('Average Quote Value:', `KES ${formatPrice(insights.avgValue)}`)
+    addRow('High BMI (>=30):', `${insights.highBmiCount} patients`)
+    addRow('Prior Surgeries:', `${insights.pastSurgCount} patients`)
+
+    y += 4
+    doc.setFont('helvetica', 'bold')
+    doc.text('Most Requested Procedure:', 14, y)
     doc.setFont('helvetica', 'normal')
-    doc.text(`${idx + 1}. ${name} - ${count} leads`, 18, y)
-    y += 5
-  })
+    doc.text(insights.mostRequested, 65, y)
+    y += 8
 
-  // Country distribution
-  if (topCountries.length) {
+    // Top 5 Procedures
+    doc.setFont('helvetica', 'bold')
+    doc.text('Top 5 Requested Procedures', 14, y)
+    y += 6
+    doc.setFont('helvetica', 'normal')
+    insights.topProcedures.forEach(([name, count], idx) => {
+      doc.text(`${idx + 1}. ${name} - ${count} leads`, 18, y)
+      y += 5
+    })
+
+    // Country Distribution
     y += 4
     doc.setFont('helvetica', 'bold')
     doc.text('Geographic Distribution', 14, y)
     y += 6
-    topCountries.forEach(([country, cnt]) => {
-      doc.setFont('helvetica', 'normal')
-      doc.text(`- ${country}: ${cnt} (${Math.round(cnt / total * 100)}%)`, 18, y)
+    doc.setFont('helvetica', 'normal')
+    insights.countryDistribution.forEach(([country, cnt]) => {
+      const pct = Math.round(cnt / insights.total * 100)
+      doc.text(`- ${country}: ${cnt} (${pct}%)`, 18, y)
       y += 5
     })
+
+    // Monthly Trend (simplified table)
+    if (insights.monthlyTrend.length) {
+      y += 6
+      doc.setFont('helvetica', 'bold')
+      doc.text('Monthly Registration Trend', 14, y)
+      y += 6
+      // Simple two-column layout
+      insights.monthlyTrend.forEach(([month, cnt]) => {
+        doc.setFont('helvetica', 'normal')
+        doc.text(`${month}: ${cnt}`, 18, y)
+        y += 5
+      })
+    }
+  } else {
+    y += 6
+    doc.setFont('helvetica', 'italic')
+    doc.text('Insufficient data to generate insights.', 14, y)
+    y += 8
   }
 
   // ---------- DETAIL TABLE ----------
@@ -309,10 +343,10 @@ const downloadPDF = () => {
   doc.setFillColor(...accent)
   doc.rect(14, y - 5, 182, 0.8, 'F')
   y += 4
-  doc.setFontSize(13)
+  doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
   doc.text('Detailed Patient Records', 14, y)
-  y += 7
+  y += 8
 
   const tableColumns = ['Name', 'Age', 'Country', 'Procedure', 'Price (KES)', 'BMI']
   const tableRows = data.map(p => [
@@ -321,7 +355,6 @@ const downloadPDF = () => {
     p.country,
     p.procedure,
     formatPrice(p.price),
-    // Cap BMI display for invalid values
     (Number(p.bmi) > 0 && Number(p.bmi) < 100) ? p.bmi : '—'
   ])
 
