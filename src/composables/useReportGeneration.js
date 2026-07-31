@@ -58,8 +58,8 @@ export function useReportGeneration() {
     }))
   }
 
-  // Generate AI-style insights from a data array
-  const generateInsights = (data) => {
+  // Generate extremely detailed AI insights from a data array
+  const generateDetailedInsights = (data) => {
     if (!data.length) return null
 
     const total = data.length
@@ -86,11 +86,21 @@ export function useReportGeneration() {
     data.forEach(p => procMap.set(p.procedure, (procMap.get(p.procedure) || 0) + 1))
     const topProcs = [...procMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
     const mostRequested = topProcs[0]?.[0] || 'N/A'
+    const mostRequestedCount = topProcs[0]?.[1] || 0
 
     // Country distribution
     const countryMap = new Map()
     data.forEach(p => countryMap.set(p.country, (countryMap.get(p.country) || 0) + 1))
     const topCountries = [...countryMap.entries()].sort((a, b) => b[1] - a[1])
+
+    // Age distribution (brackets)
+    const ageGroups = { '18-25': 0, '26-35': 0, '36-50': 0, '51+': 0 }
+    ages.forEach(age => {
+      if (age >= 18 && age <= 25) ageGroups['18-25']++
+      else if (age >= 26 && age <= 35) ageGroups['26-35']++
+      else if (age >= 36 && age <= 50) ageGroups['36-50']++
+      else if (age > 50) ageGroups['51+']++
+    })
 
     // Monthly registration trend
     const monthly = new Map()
@@ -105,6 +115,12 @@ export function useReportGeneration() {
     })
     const monthlyTrend = [...monthly.entries()].sort()
 
+    // Average weight & height
+    const weights = data.map(p => Number(p.weight)).filter(w => w > 0 && w < 500)
+    const avgWeight = weights.length ? Math.round(weights.reduce((s, v) => s + v, 0) / weights.length) : 0
+    const heights = data.map(p => Number(p.height)).filter(h => h > 0 && h < 300)
+    const avgHeight = heights.length ? Math.round(heights.reduce((s, v) => s + v, 0) / heights.length) : 0
+
     return {
       total,
       avgAge,
@@ -116,9 +132,13 @@ export function useReportGeneration() {
       highBmiCount,
       pastSurgCount,
       mostRequested,
+      mostRequestedCount,
       topProcedures: topProcs,
       countryDistribution: topCountries,
-      monthlyTrend
+      ageGroups,
+      monthlyTrend,
+      avgWeight,
+      avgHeight
     }
   }
 
@@ -138,5 +158,10 @@ export function useReportGeneration() {
     return [...set].sort()
   }
 
-  return { generateReportData, generateInsights, getUniqueProcedures, getUniqueCountries }
+  return {
+    generateReportData,
+    generateDetailedInsights,
+    getUniqueProcedures,
+    getUniqueCountries
+  }
 }

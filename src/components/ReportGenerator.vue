@@ -52,13 +52,25 @@
           </select>
         </div>
       </div>
-      <div class="flex gap-3 mt-4">
-        <button @click="applyFilters" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-700 transition">
-          <i class="fas fa-check mr-1"></i> Apply Filters
-        </button>
-        <button @click="resetFilters" class="border border-slate-200 px-4 py-2 rounded-xl text-sm hover:bg-slate-50 transition">
-          <i class="fas fa-undo mr-1"></i> Reset
-        </button>
+
+      <!-- Action row with checkbox and buttons -->
+      <div class="flex flex-wrap items-center justify-between gap-4 mt-4">
+        <label class="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            v-model="includePatientData"
+            class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          Include Patient Data in PDF
+        </label>
+        <div class="flex gap-3">
+          <button @click="applyFilters" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-700 transition">
+            <i class="fas fa-check mr-1"></i> Apply Filters
+          </button>
+          <button @click="resetFilters" class="border border-slate-200 px-4 py-2 rounded-xl text-sm hover:bg-slate-50 transition">
+            <i class="fas fa-undo mr-1"></i> Reset
+          </button>
+        </div>
       </div>
     </div>
 
@@ -118,7 +130,7 @@ import autoTable from 'jspdf-autotable'
 import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
-const { generateReportData, generateInsights, getUniqueProcedures, getUniqueCountries } = useReportGeneration()
+const { generateReportData, generateDetailedInsights, getUniqueProcedures, getUniqueCountries } = useReportGeneration()
 
 const filters = reactive({
   dateFrom: '',
@@ -135,6 +147,9 @@ const applied = ref(false)
 const filteredData = ref([])
 const uniqueProcedures = computed(() => getUniqueProcedures())
 const uniqueCountries = computed(() => getUniqueCountries())
+
+// Checkbox default is false (unchecked)
+const includePatientData = ref(false)
 
 const applyFilters = () => {
   filteredData.value = generateReportData(filters)
@@ -161,9 +176,8 @@ const formatPrice = (price) => new Intl.NumberFormat('en-KE').format(Math.round(
 // ------------------------- Excel export -------------------------
 const downloadExcel = () => {
   const data = filteredData.value
-  const insights = generateInsights(data)
+  const insights = generateDetailedInsights(data)
 
-  // Main data sheet
   const wsData = data.map(item => ({
     Name: item.name,
     Email: item.email,
@@ -181,13 +195,14 @@ const downloadExcel = () => {
   }))
   const mainSheet = XLSX.utils.json_to_sheet(wsData)
 
-  // Summary sheet
   let summaryRows = [['AI-Generated Insights', '']]
   if (insights) {
     summaryRows.push(['Total Patients', insights.total])
     summaryRows.push(['Average Age', insights.avgAge + ' years'])
     summaryRows.push(['Non-Surgical %', insights.nonSurgPercent + '%'])
     summaryRows.push(['Average BMI', insights.avgBmi])
+    summaryRows.push(['Average Weight', insights.avgWeight + ' kg'])
+    summaryRows.push(['Average Height', insights.avgHeight + ' cm'])
     summaryRows.push(['Total Quoted Value (KES)', formatPrice(insights.totalValue)])
     summaryRows.push(['Average Quote Value (KES)', formatPrice(insights.avgValue)])
     summaryRows.push(['BMI >= 30 (High Risk)', insights.highBmiCount + ' patients'])
@@ -196,6 +211,9 @@ const downloadExcel = () => {
     summaryRows.push([])
     summaryRows.push(['Top 5 Procedures', 'Count'])
     insights.topProcedures.forEach(([name, count]) => summaryRows.push([name, count]))
+    summaryRows.push([])
+    summaryRows.push(['Age Distribution', 'Count'])
+    Object.entries(insights.ageGroups).forEach(([bracket, cnt]) => summaryRows.push([bracket, cnt]))
     summaryRows.push([])
     summaryRows.push(['Country', 'Count', 'Percent'])
     insights.countryDistribution.forEach(([country, cnt]) => {
@@ -214,55 +232,23 @@ const downloadExcel = () => {
   XLSX.writeFile(workbook, `Patient_Report_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 
-// ------------------------- PDF export (with charts + summary + insights) -------------------------
+// ------------------------- PDF export -------------------------
 const downloadPDF = async () => {
   const data = filteredData.value
-  const insights = generateInsights(data)
+  const insights = generateDetailedInsights(data)
 
-  // Compute chart data
-  const procedureCounts = {}
-  data.forEach(p => {
-    const proc = p.procedure || 'Unknown'
-    procedureCounts[proc] = (procedureCounts[proc] || 0) + 1
-  })
-  const procLabels = Object.keys(procedureCounts).sort((a,b) => procedureCounts[b] - procedureCounts[a])
-  const procValues = procLabels.map(l => procedureCounts[l])
-
-  const countryCounts = {}
-  data.forEach(p => {
-    const c = p.country || 'Unknown'
-    countryCounts[c] = (countryCounts[c] || 0) + 1
-  })
-  const countryLabels = Object.keys(countryCounts).sort((a,b) => countryCounts[b] - countryCounts[a])
-  const countryValues = countryLabels.map(l => countryCounts[l])
-
-  const ageGroups = { '18-25': 0, '26-35': 0, '36-50': 0, '51+': 0 }
-  data.forEach(p => {
-    const age = Number(p.age)
-    if (age >= 18 && age <= 25) ageGroups['18-25']++
-    else if (age >= 26 && age <= 35) ageGroups['26-35']++
-    else if (age >= 36 && age <= 50) ageGroups['36-50']++
-    else if (age > 50) ageGroups['51+']++
-  })
-  const ageLabels = Object.keys(ageGroups)
-  const ageValues = Object.values(ageGroups)
-
-  const regMonths = {}
-  data.forEach(p => {
-    if (p.createdDate) {
-      const d = new Date(p.createdDate)
-      if (!isNaN(d.getTime())) {
-        const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
-        regMonths[key] = (regMonths[key] || 0) + 1
-      }
-    }
-  })
-  const monthLabels = Object.keys(regMonths).sort()
-  const monthValues = monthLabels.map(m => regMonths[m])
+  // Chart data
+  const procLabels = insights?.topProcedures.map(p => p[0]) || []
+  const procValues = insights?.topProcedures.map(p => p[1]) || []
+  const countryLabels = insights?.countryDistribution.map(c => c[0]) || []
+  const countryValues = insights?.countryDistribution.map(c => c[1]) || []
+  const ageLabels = ['18-25', '26-35', '36-50', '51+']
+  const ageValues = ageLabels.map(l => insights?.ageGroups[l] || 0)
+  const monthLabels = insights?.monthlyTrend.map(m => m[0]) || []
+  const monthValues = insights?.monthlyTrend.map(m => m[1]) || []
 
   const chartColors = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16','#14b8a6','#f97316']
 
-  // Helper to create a chart image
   const chartToImage = (config, width = 600, height = 300) => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas')
@@ -278,58 +264,37 @@ const downloadPDF = async () => {
     })
   }
 
-  const procChartConfig = {
-    type: 'bar',
-    data: {
-      labels: procLabels,
-      datasets: [{ label: 'Requests', data: procValues, backgroundColor: '#818cf8', borderRadius: 8 }]
-    },
-    options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-  }
-
-  const countryChartConfig = {
-    type: 'pie',
-    data: {
-      labels: countryLabels,
-      datasets: [{ data: countryValues, backgroundColor: chartColors.slice(0, countryLabels.length), borderWidth: 0 }]
-    },
-    options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
-  }
-
-  const ageChartConfig = {
-    type: 'bar',
-    data: {
-      labels: ageLabels,
-      datasets: [{ label: 'Patients', data: ageValues, backgroundColor: '#6366f1', borderRadius: 8 }]
-    },
-    options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-  }
-
-  const regChartConfig = {
-    type: 'line',
-    data: {
-      labels: monthLabels,
-      datasets: [{ label: 'New Patients', data: monthValues, fill: false, borderColor: '#10b981', tension: 0.1, pointBackgroundColor: '#10b981' }]
-    },
-    options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-  }
-
   const [procImg, countryImg, ageImg, regImg] = await Promise.all([
-    chartToImage(procChartConfig, 600, 300),
-    chartToImage(countryChartConfig, 400, 280),
-    chartToImage(ageChartConfig, 600, 250),
-    chartToImage(regChartConfig, 600, 250)
+    chartToImage({
+      type: 'bar',
+      data: { labels: procLabels, datasets: [{ label: 'Requests', data: procValues, backgroundColor: '#818cf8', borderRadius: 8 }] },
+      options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    }, 600, 300),
+    chartToImage({
+      type: 'pie',
+      data: { labels: countryLabels, datasets: [{ data: countryValues, backgroundColor: chartColors.slice(0, countryLabels.length), borderWidth: 0 }] },
+      options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
+    }, 400, 280),
+    chartToImage({
+      type: 'bar',
+      data: { labels: ageLabels, datasets: [{ label: 'Patients', data: ageValues, backgroundColor: '#6366f1', borderRadius: 8 }] },
+      options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    }, 600, 250),
+    chartToImage({
+      type: 'line',
+      data: { labels: monthLabels, datasets: [{ label: 'New Patients', data: monthValues, fill: false, borderColor: '#10b981', tension: 0.1, pointBackgroundColor: '#10b981' }] },
+      options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    }, 600, 250)
   ])
 
-  // Build PDF
+  // PDF
   const doc = new jsPDF('p', 'mm', 'a4')
   const now = new Date().toLocaleString('en-KE', { dateStyle: 'full', timeStyle: 'short' })
   const primary = [30, 41, 59]
   const accent = [79, 70, 229]
-  const lightBg = [245, 247, 250]
   let y = 0
 
-  // --- HEADER ---
+  // Header
   doc.setFillColor(...primary)
   doc.rect(0, 0, 210, 30, 'F')
   doc.setTextColor(255, 255, 255)
@@ -342,7 +307,7 @@ const downloadPDF = async () => {
   doc.text(`Generated: ${now}`, 14, 26)
   y = 38
 
-  // --- FILTER CRITERIA ---
+  // Filters
   doc.setTextColor(...primary)
   doc.setFontSize(13)
   doc.setFont('helvetica', 'bold')
@@ -361,14 +326,11 @@ const downloadPDF = async () => {
   if (filters.nonSurgical === 'no') filterLines.push('Surgical only')
   if (filters.bmiHighRisk) filterLines.push('BMI >= 30 (High Risk)')
   if (filterLines.length === 0) filterLines.push('No filters applied - showing all records')
-  filterLines.forEach(line => {
-    doc.text(`- ${line}`, 14, y)
-    y += 4.5
-  })
+  filterLines.forEach(line => { doc.text(`- ${line}`, 14, y); y += 4.5 })
 
-  // --- AI CLINICAL ANALYTICS (narrative cards) ---
-  y += 6
+  // AI Insights (always)
   if (insights) {
+    y += 6
     doc.setFillColor(...accent)
     doc.rect(14, y - 5, 182, 0.8, 'F')
     y += 4
@@ -377,40 +339,19 @@ const downloadPDF = async () => {
     doc.text('AI Clinical Analytics & Strategy', 14, y)
     y += 8
 
-    const insightCards = [
-      {
-        title: 'Procedure Demand Surge',
-        message: `${insights.mostRequested} leads your database, accounting for ${Math.round((insights.topProcedures[0]?.[1] || 0) / insights.total * 100)}% of total inquiries. Ensure resource and inventory optimization for this segment.`
-      },
-      {
-        title: 'Targeted Age Demographic',
-        message: `The current dataset yields an average age of ${insights.avgAge} years. The 26–35 distribution bracket demonstrates the sharpest customer lifecycle conversion velocity.`
-      },
-      {
-        title: 'Care Classification Footprint',
-        message: `${insights.nonSurgPercent}% of inbound leads requested non-surgical alternatives. Adding tiered skin-tightening or injectables packaging could capture unrealized revenue.`
-      },
-      {
-        title: 'Geographic Footprint Opportunity',
-        message: `The high concentration of submissions originates from ${insights.countryDistribution[0]?.[0] || 'Kenya'}. Localized hyper-targeted clinical marketing and localized SEO focus will optimize conversion cost.`
-      },
-      {
-        title: 'Asset Conversion Strategy',
-        message: `Average transaction pricing maps at KES ${formatPrice(insights.avgValue)}. Integrating flexible multi-installment healthcare financing structures could reduce drop-off.`
-      },
-      {
-        title: 'Patient Risk Profiling Matrix',
-        message: `${insights.highBmiCount} prospective clients present a calculated BMI >= 30.0, and ${insights.pastSurgCount} note surgical backgrounds. Automated pre-anesthetic tracking flags are recommended.`
-      }
+    // Narrative cards
+    const cards = [
+      { title: 'Procedure Demand Surge', message: `${insights.mostRequested} leads your database, accounting for ${Math.round((insights.mostRequestedCount || 0) / insights.total * 100)}% of total inquiries. Ensure resource and inventory optimization for this segment.` },
+      { title: 'Targeted Age Demographic', message: `The current dataset yields an average age of ${insights.avgAge} years. The 26–35 bracket (${insights.ageGroups['26-35']} patients) demonstrates the sharpest customer lifecycle conversion velocity.` },
+      { title: 'Care Classification Footprint', message: `${insights.nonSurgPercent}% of inbound leads requested non-surgical alternatives. Adding tiered skin-tightening or injectables packaging could capture unrealized revenue.` },
+      { title: 'Geographic Footprint Opportunity', message: `The high concentration of submissions originates from ${insights.countryDistribution[0]?.[0] || 'Kenya'}. Localized hyper-targeted clinical marketing and localized SEO focus will optimize conversion cost.` },
+      { title: 'Asset Conversion Strategy', message: `Average transaction pricing maps at KES ${formatPrice(insights.avgValue)}. Integrating flexible multi-installment healthcare financing structures could reduce drop-off.` },
+      { title: 'Patient Risk Profiling Matrix', message: `${insights.highBmiCount} prospective clients present a calculated BMI >= 30.0, and ${insights.pastSurgCount} note surgical backgrounds. Automated pre-anesthetic tracking flags are recommended.` }
     ]
-
-    insightCards.forEach(card => {
-      if (y > 250) {
-        doc.addPage()
-        y = 20
-      }
+    cards.forEach(card => {
+      if (y > 250) { doc.addPage(); y = 20 }
       doc.setFillColor(248, 250, 252)
-      doc.roundedRect(14, y, 182, 22, 3, 3, 'F')
+      doc.roundedRect(14, y, 182, 20, 3, 3, 'F')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(10)
       doc.setTextColor(...primary)
@@ -422,7 +363,7 @@ const downloadPDF = async () => {
       y += 24
     })
 
-    // --- DETAILED AI INSIGHTS SUMMARY (the block user wants) ---
+    // Detailed Summary
     y += 6
     doc.setFillColor(...accent)
     doc.rect(14, y - 5, 182, 0.8, 'F')
@@ -430,7 +371,7 @@ const downloadPDF = async () => {
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...primary)
-    doc.text('AI-Generated Insights Summary', 14, y)
+    doc.text('AI-Generated Insights', 14, y)
     y += 8
 
     const summaryData = [
@@ -458,7 +399,7 @@ const downloadPDF = async () => {
     // Top 5 Procedures
     y += 2
     doc.setFont('helvetica', 'bold')
-    doc.text('Top 5 Requested Procedures:', 18, y)
+    doc.text('Top 5 Requested Procedures', 18, y)
     y += 6
     insights.topProcedures.forEach(([name, count], idx) => {
       doc.setFont('helvetica', 'normal')
@@ -469,7 +410,7 @@ const downloadPDF = async () => {
     // Geographic Distribution
     y += 2
     doc.setFont('helvetica', 'bold')
-    doc.text('Geographic Distribution:', 18, y)
+    doc.text('Geographic Distribution', 18, y)
     y += 6
     insights.countryDistribution.forEach(([country, cnt]) => {
       const pct = Math.round(cnt / insights.total * 100)
@@ -478,11 +419,11 @@ const downloadPDF = async () => {
       y += 5
     })
 
-    // Monthly Registration Trend
+    // Monthly Trend
     if (insights.monthlyTrend.length) {
       y += 2
       doc.setFont('helvetica', 'bold')
-      doc.text('Monthly Registration Trend:', 18, y)
+      doc.text('Monthly Registration Trend', 18, y)
       y += 6
       insights.monthlyTrend.forEach(([month, cnt]) => {
         doc.setFont('helvetica', 'normal')
@@ -491,7 +432,7 @@ const downloadPDF = async () => {
       })
     }
 
-    // --- CHARTS ---
+    // Charts (always)
     y += 8
     doc.setFillColor(...accent)
     doc.rect(14, y - 5, 182, 0.8, 'F')
@@ -500,7 +441,6 @@ const downloadPDF = async () => {
     doc.setFont('helvetica', 'bold')
     doc.text('Visual Data Insights', 14, y)
     y += 10
-
     const chartWidth = 88
     doc.addImage(procImg, 'PNG', 14, y, chartWidth, 50)
     doc.addImage(countryImg, 'PNG', 14 + chartWidth + 6, y, chartWidth, 50)
@@ -515,52 +455,43 @@ const downloadPDF = async () => {
     y += 10
   }
 
-  // --- DETAILED PATIENT RECORDS (new page) ---
-  doc.addPage()
-  y = 20
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'bold')
-  doc.setTextColor(...primary)
-  doc.text('Detailed Patient Records', 14, y)
-  y += 8
+  // *** PATIENT DATA TABLE – only if checkbox is checked ***
+  if (includePatientData.value) {
+    doc.addPage()
+    y = 20
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...primary)
+    doc.text('Detailed Patient Records', 14, y)
+    y += 8
 
-  const tableColumns = ['Name', 'Age', 'Country', 'Procedure', 'Price (KES)', 'BMI']
-  const tableRows = data.map(p => [
-    p.name,
-    p.age,
-    p.country,
-    p.procedure,
-    formatPrice(p.price),
-    (Number(p.bmi) > 0 && Number(p.bmi) < 100) ? p.bmi : '—'
-  ])
+    const tableColumns = ['Name', 'Age', 'Country', 'Procedure', 'Price (KES)', 'BMI']
+    const tableRows = data.map(p => [
+      p.name,
+      p.age,
+      p.country,
+      p.procedure,
+      formatPrice(p.price),
+      (Number(p.bmi) > 0 && Number(p.bmi) < 100) ? p.bmi : '—'
+    ])
 
-  autoTable(doc, {
-    startY: y,
-    head: [tableColumns],
-    body: tableRows,
-    theme: 'striped',
-    headStyles: {
-      fillColor: primary,
-      textColor: 255,
-      fontStyle: 'bold',
-      fontSize: 8
-    },
-    styles: {
-      fontSize: 7.5,
-      cellPadding: 2,
-      valign: 'middle'
-    },
-    alternateRowStyles: {
-      fillColor: lightBg
-    },
-    margin: { left: 14, right: 14 },
-    didDrawPage: () => {
-      doc.setFontSize(8)
-      doc.setTextColor(150)
-      doc.text(`Report generated ${now}`, 14, 285)
-      doc.text(`Page ${doc.internal.getNumberOfPages()}`, 196, 285, { align: 'right' })
-    }
-  })
+    autoTable(doc, {
+      startY: y,
+      head: [tableColumns],
+      body: tableRows,
+      theme: 'striped',
+      headStyles: { fillColor: primary, textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      styles: { fontSize: 7.5, cellPadding: 2, valign: 'middle' },
+      alternateRowStyles: { fillColor: [245, 247, 250] },
+      margin: { left: 14, right: 14 },
+      didDrawPage: () => {
+        doc.setFontSize(8)
+        doc.setTextColor(150)
+        doc.text(`Report generated ${now}`, 14, 285)
+        doc.text(`Page ${doc.internal.getNumberOfPages()}`, 196, 285, { align: 'right' })
+      }
+    })
+  }
 
   doc.save(`Patient_Report_${new Date().toISOString().slice(0,10)}.pdf`)
 }
