@@ -268,22 +268,22 @@ const downloadPDF = async () => {
     chartToImage({
       type: 'bar',
       data: { labels: procLabels, datasets: [{ label: 'Requests', data: procValues, backgroundColor: '#818cf8', borderRadius: 8 }] },
-      options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
     }, 600, 300),
     chartToImage({
       type: 'pie',
       data: { labels: countryLabels, datasets: [{ data: countryValues, backgroundColor: chartColors.slice(0, countryLabels.length), borderWidth: 0 }] },
-      options: { responsive: false, plugins: { legend: { position: 'bottom' } } }
+      options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
     }, 400, 280),
     chartToImage({
       type: 'bar',
       data: { labels: ageLabels, datasets: [{ label: 'Patients', data: ageValues, backgroundColor: '#6366f1', borderRadius: 8 }] },
-      options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
     }, 600, 250),
     chartToImage({
       type: 'line',
       data: { labels: monthLabels, datasets: [{ label: 'New Patients', data: monthValues, fill: false, borderColor: '#10b981', tension: 0.1, pointBackgroundColor: '#10b981' }] },
-      options: { responsive: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
     }, 600, 250)
   ])
 
