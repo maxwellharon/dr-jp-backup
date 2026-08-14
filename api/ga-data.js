@@ -7,38 +7,35 @@ export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
-    }
-
-    if (req.method !== 'GET') {
-        return res.status(405).json({ error: 'Only GET supported' });
-    }
+    if (req.method === 'OPTIONS') return res.status(200).end();
+    if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET supported' });
 
     const GA_PROPERTY_ID = process.env.GA_PROPERTY_ID;
+    const GA_CLIENT_EMAIL = process.env.GA_CLIENT_EMAIL;
+    const GA_PRIVATE_KEY = process.env.GA_PRIVATE_KEY;
+
     if (!GA_PROPERTY_ID) {
         console.error('❌ Missing GA_PROPERTY_ID');
         return res.status(500).json({ error: 'Missing GA_PROPERTY_ID environment variable' });
     }
-
-    const serviceAccountJson = process.env.GA_SERVICE_ACCOUNT_JSON;
-    if (!serviceAccountJson) {
-        console.error('❌ Missing GA_SERVICE_ACCOUNT_JSON');
-        return res.status(500).json({ error: 'Missing GA_SERVICE_ACCOUNT_JSON environment variable' });
+    if (!GA_CLIENT_EMAIL) {
+        console.error('❌ Missing GA_CLIENT_EMAIL');
+        return res.status(500).json({ error: 'Missing GA_CLIENT_EMAIL environment variable' });
+    }
+    if (!GA_PRIVATE_KEY) {
+        console.error('❌ Missing GA_PRIVATE_KEY');
+        return res.status(500).json({ error: 'Missing GA_PRIVATE_KEY environment variable' });
     }
 
-    let credentials;
-    try {
-        credentials = JSON.parse(serviceAccountJson);
-        console.log('✅ Service account parsed successfully');
-    } catch (parseError) {
-        console.error('❌ Failed to parse GA_SERVICE_ACCOUNT_JSON:', parseError.message);
-        console.error('First 100 chars:', serviceAccountJson.substring(0, 100));
-        return res.status(500).json({
-            error: 'Invalid GA_SERVICE_ACCOUNT_JSON format',
-            detail: parseError.message
-        });
-    }
+    // Ensure private key has proper newlines (Vercel may store with \n escapes)
+    const privateKey = GA_PRIVATE_KEY.replace(/\\n/g, '\n');
+
+    const credentials = {
+        client_email: GA_CLIENT_EMAIL,
+        private_key: privateKey,
+    };
+
+    console.log('✅ Credentials prepared for:', GA_CLIENT_EMAIL);
 
     try {
         const client = new BetaAnalyticsDataClient({ credentials });
@@ -158,16 +155,11 @@ export default async function handler(req, res) {
         });
     } catch (error) {
         console.error('❌ GA API error:', error.message);
-        if (error.code) {
-            console.error('Error code:', error.code);
-        }
-        if (error.details) {
-            console.error('Error details:', error.details);
-        }
+        console.error('Full error:', error);
         res.status(500).json({
             error: error.message,
             code: error.code || null,
-            details: error.details || null
+            details: error.details || null,
         });
     }
 }
