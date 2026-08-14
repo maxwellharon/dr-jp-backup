@@ -293,4 +293,4 @@ onMounted(() => {
     nextTick(() => createCharts())
   }
 })
-</script>
+</script> 
