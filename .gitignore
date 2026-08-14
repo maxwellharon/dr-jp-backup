@@ -32,3 +32,12 @@ dist/
 .env.*.local
 .vercel
 .env*
+
+.env
+.env.local
+ga-service-account.json
+node_modules
+dist
+
+GA_PROPERTY_ID=123456789ga-service-account.json
+ga-service-account.json

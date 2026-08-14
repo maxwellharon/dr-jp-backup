@@ -1,8 +1,9 @@
 // api/ga-data.js
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
+import fs from 'fs';
+import path from 'path';
 
 export default async function handler(req, res) {
-    // CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -11,38 +12,30 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET supported' });
 
     const GA_PROPERTY_ID = process.env.GA_PROPERTY_ID;
-    const GA_CLIENT_EMAIL = process.env.GA_CLIENT_EMAIL;
-    const GA_PRIVATE_KEY = process.env.GA_PRIVATE_KEY;
-
     if (!GA_PROPERTY_ID) {
-        console.error('❌ Missing GA_PROPERTY_ID');
         return res.status(500).json({ error: 'Missing GA_PROPERTY_ID environment variable' });
     }
-    if (!GA_CLIENT_EMAIL) {
-        console.error('❌ Missing GA_CLIENT_EMAIL');
-        return res.status(500).json({ error: 'Missing GA_CLIENT_EMAIL environment variable' });
+
+    let serviceAccount;
+    try {
+        const filePath = path.join(process.cwd(), 'ga-service-account.json');
+        serviceAccount = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        console.log('✅ Service account loaded from file');
+    } catch (err) {
+        console.error('❌ Failed to read ga-service-account.json:', err.message);
+        return res.status(500).json({ error: 'Failed to load service account credentials' });
     }
-    if (!GA_PRIVATE_KEY) {
-        console.error('❌ Missing GA_PRIVATE_KEY');
-        return res.status(500).json({ error: 'Missing GA_PRIVATE_KEY environment variable' });
-    }
-
-    // Ensure private key has proper newlines (Vercel may store with \n escapes)
-    const privateKey = GA_PRIVATE_KEY.replace(/\\n/g, '\n');
-
-    const credentials = {
-        client_email: GA_CLIENT_EMAIL,
-        private_key: privateKey,
-    };
-
-    console.log('✅ Credentials prepared for:', GA_CLIENT_EMAIL);
 
     try {
-        const client = new BetaAnalyticsDataClient({ credentials });
+        const client = new BetaAnalyticsDataClient({
+            credentials: {
+                client_email: serviceAccount.client_email,
+                private_key: serviceAccount.private_key,
+            },
+        });
+
         const property = `properties/${GA_PROPERTY_ID}`;
         const dateRanges = [{ startDate: '30daysAgo', endDate: 'today' }];
-
-        console.log('📊 Fetching GA data for property:', GA_PROPERTY_ID);
 
         // Summary metrics
         const [summaryResponse] = await client.runReport({
@@ -155,7 +148,6 @@ export default async function handler(req, res) {
         });
     } catch (error) {
         console.error('❌ GA API error:', error.message);
-        console.error('Full error:', error);
         res.status(500).json({
             error: error.message,
             code: error.code || null,
