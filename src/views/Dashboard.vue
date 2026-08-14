@@ -36,8 +36,26 @@
         </div>
       </div>
 
-      <!-- Active Filters Bar -->
-      <div v-if="hasActiveFilters" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-2 items-center">
+      <!-- Tab Navigation -->
+      <div class="flex gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+        <button
+          @click="activeTab = 'patients'"
+          :class="activeTab === 'patients' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'"
+          class="flex-1 md:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2"
+        >
+          <i class="fas fa-user-injured"></i> Patient Analytics
+        </button>
+        <button
+          @click="activeTab = 'site'"
+          :class="activeTab === 'site' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'"
+          class="flex-1 md:flex-none px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 flex items-center justify-center gap-2"
+        >
+          <i class="fas fa-chart-line"></i> Site Analytics
+        </button>
+      </div>
+
+      <!-- Active Filters Bar (only for patient tab) -->
+      <div v-if="activeTab === 'patients' && hasActiveFilters" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-2 items-center">
         <span class="text-xs font-semibold text-slate-500 mr-2">Active filters:</span>
         <span v-if="dateFrom || dateTo" class="filter-tag">
           📅 {{ dateFrom || 'Start' }} → {{ dateTo || 'End' }}
@@ -70,186 +88,195 @@
         <button @click="resetAllFilters" class="ml-auto text-xs text-indigo-600 hover:underline font-semibold">Reset all</button>
       </div>
 
-      <!-- Loading -->
-      <div v-if="loading" class="flex flex-col items-center justify-center py-32 space-y-4">
-        <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-indigo-600"></div>
-        <p class="text-sm font-medium text-slate-500">Parsing relational clinical tables...</p>
+      <!-- Patient Analytics Tab -->
+      <div v-if="activeTab === 'patients'">
+        <!-- Loading (patient) -->
+        <div v-if="loading" class="flex flex-col items-center justify-center py-32 space-y-4">
+          <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-indigo-600"></div>
+          <p class="text-sm font-medium text-slate-500">Parsing relational clinical tables...</p>
+        </div>
+
+        <div v-else class="space-y-8">
+          <!-- Stats Cards -->
+          <StatsCards
+            :total="totalPatients"
+            :mostRequested="mostRequestedProc"
+            :avgAge="averageAge"
+            :nonSurgPercent="nonSurgicalPercent"
+            @card-click="openDetailModal"
+          />
+
+          <!-- Deep Analytical Row -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Top 5 Procedures -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                  <i class="fas fa-crown text-amber-500"></i> Top 5 Requested Procedures
+                </h3>
+              </div>
+              <div class="space-y-3.5">
+                <div
+                  v-for="(proc, idx) in topProcedures"
+                  :key="proc.name"
+                  @click="activeProcedureFilter = proc.name"
+                  class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-indigo-200 cursor-pointer transition-all"
+                  :class="{ 'ring-2 ring-indigo-300 bg-indigo-50/50': activeProcedureFilter === proc.name }"
+                >
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span :class="[
+                      'h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0',
+                      idx === 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                      idx === 1 ? 'bg-slate-200 text-slate-700' :
+                      idx === 2 ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-slate-100 text-slate-600'
+                    ]">
+                      #{{ idx + 1 }}
+                    </span>
+                    <p class="text-sm font-semibold text-slate-700 truncate group-hover:text-indigo-600 transition-colors">
+                      {{ proc.name }}
+                    </p>
+                  </div>
+                  <div class="text-right shrink-0 pl-2">
+                    <span class="text-xs text-slate-500">{{ proc.count }} leads</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Clinical Vitals -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                  <i class="fas fa-heartbeat text-rose-500"></i> Clinical Vital Thresholds
+                </h3>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100">
+                  <p class="text-xs font-medium text-indigo-600 uppercase tracking-wider">Average Weight</p>
+                  <p class="text-2xl font-bold text-indigo-900 mt-1">{{ avgWeight }} <span class="text-sm font-normal">kg</span></p>
+                </div>
+                <div class="p-4 rounded-xl bg-purple-50/50 border border-purple-100">
+                  <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Average Height</p>
+                  <p class="text-2xl font-bold text-purple-900 mt-1">{{ avgHeight }} <span class="text-sm font-normal">cm</span></p>
+                </div>
+                <div class="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                  <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Mean BMI</p>
+                  <p class="text-2xl font-bold text-emerald-900 mt-1">{{ avgBmi }}</p>
+                </div>
+                <!-- Prior Surgeries clickable -->
+                <div
+                  @click="pastSurgeriesFilter = !pastSurgeriesFilter"
+                  class="p-4 rounded-xl bg-amber-50/50 border border-amber-100 cursor-pointer hover:shadow transition"
+                  :class="{ 'ring-2 ring-amber-400 bg-amber-100/50': pastSurgeriesFilter }"
+                >
+                  <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Prior Surgeries</p>
+                  <p class="text-2xl font-bold text-amber-900 mt-1">{{ surgicalHistoryCount }}</p>
+                </div>
+              </div>
+              <!-- BMI high risk clickable -->
+              <div
+                @click="bmiHighRiskFilter = !bmiHighRiskFilter"
+                class="mt-4 p-3 rounded-xl border text-xs cursor-pointer hover:shadow transition"
+                :class="bmiHighRiskFilter ? 'bg-rose-100 border-rose-300 text-rose-700' : 'bg-slate-50 border-slate-200/60 text-slate-600'"
+              >
+                <i class="fas fa-info-circle mr-1.5" :class="bmiHighRiskFilter ? 'text-rose-500' : 'text-indigo-500'"></i>
+                <strong>Anesthetic Risk:</strong> {{ bmisOver30 }} of {{ totalPatients }} patients with BMI ≥ 30.
+                <span class="text-xs ml-1 opacity-70">{{ bmiHighRiskFilter ? '(Filter active)' : '(Click to filter)' }}</span>
+              </div>
+            </div>
+
+            <!-- Registrations Chart -->
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h3 class="font-bold text-lg text-slate-800 mb-2 flex items-center gap-2">
+                <i class="fas fa-history text-indigo-500"></i> Submission Time Series
+              </h3>
+              <RegistrationsChart :data="registrationsTimeSeries" @point-click="handleMonthClick" />
+            </div>
+          </div>
+
+          <!-- Demographics Charts -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Age Bracket</h4>
+              <AgeChart :data="ageDistribution" @segment-click="handleAgeClick" />
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Procedures</h4>
+              <ProcedureChart :data="procedureData" @bar-click="handleProcedureClick" />
+            </div>
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Countries</h4>
+              <CountryChart :data="countryDistribution" @slice-click="handleCountryClick" />
+            </div>
+          </div>
+
+          <!-- Lower grid: Main patient table + Inbox -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-4">
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-xl text-slate-900 flex items-center gap-2">
+                  <i class="fas fa-stream text-indigo-600"></i>
+                  Quote Submissions ({{ displayedPatients.length }})
+                </h3>
+              </div>
+              <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-2">
+                <ResponsiveTable
+                  :headers="['Name', 'Procedure', 'Age', 'Country', 'Price (KES)']"
+                  :data="paginatedDisplayedPatients"
+                  :actions="true"
+                  @view="goToPatient"
+                />
+                <div class="flex justify-end p-3 border-t border-slate-100">
+                  <Pagination
+                    :current-page="tablePage"
+                    :total-pages="Math.ceil(displayedPatients.length / tablePageSize)"
+                    @page-change="handleTablePageChange"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <h3 class="font-bold text-xl text-slate-900 flex items-center gap-2">
+                <i class="fas fa-envelope-open-text text-purple-600"></i> Live Inbox ({{ totalInquiries }})
+              </h3>
+              <div class="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 max-h-[465px] overflow-y-auto custom-scrollbar">
+                <div v-if="recentInquiries.length === 0" class="p-8 text-center text-slate-400 text-sm">
+                  <i class="fas fa-inbox text-2xl block mb-2 text-slate-300"></i> No new inquiries.
+                </div>
+                <div v-for="inquiry in recentInquiries" :key="inquiry.id" class="p-4 hover:bg-slate-50/80 transition-colors">
+                  <div class="flex justify-between items-start mb-1.5">
+                    <span class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full truncate max-w-[190px]">
+                      {{ inquiry.email }}
+                    </span>
+                    <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                      {{ formatDate(inquiry.createdDate) }}
+                    </span>
+                  </div>
+                  <h4 class="font-bold text-sm text-slate-800 truncate">{{ inquiry.subject }}</h4>
+                  <p class="text-xs text-slate-500 line-clamp-2 mt-1">{{ inquiry.message }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div v-else class="space-y-8">
-        <!-- Stats Cards -->
-        <StatsCards
-          :total="totalPatients"
-          :mostRequested="mostRequestedProc"
-          :avgAge="averageAge"
-          :nonSurgPercent="nonSurgicalPercent"
-          @card-click="openDetailModal"
-        />
-
-        <!-- Deep Analytical Row -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <!-- Top 5 Procedures -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
-                <i class="fas fa-crown text-amber-500"></i> Top 5 Requested Procedures
-              </h3>
-            </div>
-            <div class="space-y-3.5">
-              <div
-                v-for="(proc, idx) in topProcedures"
-                :key="proc.name"
-                @click="activeProcedureFilter = proc.name"
-                class="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-indigo-200 cursor-pointer transition-all"
-                :class="{ 'ring-2 ring-indigo-300 bg-indigo-50/50': activeProcedureFilter === proc.name }"
-              >
-                <div class="flex items-center gap-3 min-w-0">
-                  <span :class="[
-                    'h-7 w-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0',
-                    idx === 0 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                    idx === 1 ? 'bg-slate-200 text-slate-700' :
-                    idx === 2 ? 'bg-orange-50 text-orange-700 border border-orange-200' : 'bg-slate-100 text-slate-600'
-                  ]">
-                    #{{ idx + 1 }}
-                  </span>
-                  <p class="text-sm font-semibold text-slate-700 truncate group-hover:text-indigo-600 transition-colors">
-                    {{ proc.name }}
-                  </p>
-                </div>
-                <div class="text-right shrink-0 pl-2">
-                  <span class="text-xs text-slate-500">{{ proc.count }} leads</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Clinical Vitals -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <div class="flex items-center justify-between mb-4">
-              <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
-                <i class="fas fa-heartbeat text-rose-500"></i> Clinical Vital Thresholds
-              </h3>
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="p-4 rounded-xl bg-indigo-50/50 border border-indigo-100">
-                <p class="text-xs font-medium text-indigo-600 uppercase tracking-wider">Average Weight</p>
-                <p class="text-2xl font-bold text-indigo-900 mt-1">{{ avgWeight }} <span class="text-sm font-normal">kg</span></p>
-              </div>
-              <div class="p-4 rounded-xl bg-purple-50/50 border border-purple-100">
-                <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Average Height</p>
-                <p class="text-2xl font-bold text-purple-900 mt-1">{{ avgHeight }} <span class="text-sm font-normal">cm</span></p>
-              </div>
-              <div class="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
-                <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Mean BMI</p>
-                <p class="text-2xl font-bold text-emerald-900 mt-1">{{ avgBmi }}</p>
-              </div>
-              <!-- Prior Surgeries clickable -->
-              <div
-                @click="pastSurgeriesFilter = !pastSurgeriesFilter"
-                class="p-4 rounded-xl bg-amber-50/50 border border-amber-100 cursor-pointer hover:shadow transition"
-                :class="{ 'ring-2 ring-amber-400 bg-amber-100/50': pastSurgeriesFilter }"
-              >
-                <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Prior Surgeries</p>
-                <p class="text-2xl font-bold text-amber-900 mt-1">{{ surgicalHistoryCount }}</p>
-              </div>
-            </div>
-            <!-- BMI high risk clickable -->
-            <div
-              @click="bmiHighRiskFilter = !bmiHighRiskFilter"
-              class="mt-4 p-3 rounded-xl border text-xs cursor-pointer hover:shadow transition"
-              :class="bmiHighRiskFilter ? 'bg-rose-100 border-rose-300 text-rose-700' : 'bg-slate-50 border-slate-200/60 text-slate-600'"
-            >
-              <i class="fas fa-info-circle mr-1.5" :class="bmiHighRiskFilter ? 'text-rose-500' : 'text-indigo-500'"></i>
-              <strong>Anesthetic Risk:</strong> {{ bmisOver30 }} of {{ totalPatients }} patients with BMI ≥ 30.
-              <span class="text-xs ml-1 opacity-70">{{ bmiHighRiskFilter ? '(Filter active)' : '(Click to filter)' }}</span>
-            </div>
-          </div>
-
-          <!-- Registrations Chart -->
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 class="font-bold text-lg text-slate-800 mb-2 flex items-center gap-2">
-              <i class="fas fa-history text-indigo-500"></i> Submission Time Series
-            </h3>
-            <RegistrationsChart :data="registrationsTimeSeries" @point-click="handleMonthClick" />
-          </div>
-        </div>
-
-        <!-- Demographics Charts -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Age Bracket</h4>
-            <AgeChart :data="ageDistribution" @segment-click="handleAgeClick" />
-          </div>
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Procedures</h4>
-            <ProcedureChart :data="procedureData" @bar-click="handleProcedureClick" />
-          </div>
-          <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Countries</h4>
-            <CountryChart :data="countryDistribution" @slice-click="handleCountryClick" />
-          </div>
-        </div>
-
-        <!-- Lower grid: Main patient table + Inbox -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div class="lg:col-span-2 space-y-4">
-            <div class="flex items-center justify-between">
-              <h3 class="font-bold text-xl text-slate-900 flex items-center gap-2">
-                <i class="fas fa-stream text-indigo-600"></i>
-                Quote Submissions ({{ displayedPatients.length }})
-              </h3>
-            </div>
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-2">
-              <ResponsiveTable
-                :headers="['Name', 'Procedure', 'Age', 'Country', 'Price (KES)']"
-                :data="paginatedDisplayedPatients"
-                :actions="true"
-                @view="goToPatient"
-              />
-              <div class="flex justify-end p-3 border-t border-slate-100">
-                <Pagination
-                  :current-page="tablePage"
-                  :total-pages="Math.ceil(displayedPatients.length / tablePageSize)"
-                  @page-change="handleTablePageChange"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div class="space-y-4">
-            <h3 class="font-bold text-xl text-slate-900 flex items-center gap-2">
-              <i class="fas fa-envelope-open-text text-purple-600"></i> Live Inbox ({{ totalInquiries }})
-            </h3>
-            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm divide-y divide-slate-100 max-h-[465px] overflow-y-auto custom-scrollbar">
-              <div v-if="recentInquiries.length === 0" class="p-8 text-center text-slate-400 text-sm">
-                <i class="fas fa-inbox text-2xl block mb-2 text-slate-300"></i> No new inquiries.
-              </div>
-              <div v-for="inquiry in recentInquiries" :key="inquiry.id" class="p-4 hover:bg-slate-50/80 transition-colors">
-                <div class="flex justify-between items-start mb-1.5">
-                  <span class="text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full truncate max-w-[190px]">
-                    {{ inquiry.email }}
-                  </span>
-                  <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                    {{ formatDate(inquiry.createdDate) }}
-                  </span>
-                </div>
-                <h4 class="font-bold text-sm text-slate-800 truncate">{{ inquiry.subject }}</h4>
-                <p class="text-xs text-slate-500 line-clamp-2 mt-1">{{ inquiry.message }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <!-- Site Analytics Tab -->
+      <div v-else-if="activeTab === 'site'">
+        <SiteAnalytics />
       </div>
     </div>
 
-    <!-- Detail Modal -->
+    <!-- Detail Modal (patient only) -->
     <Teleport to="body">
       <Transition name="modal">
         <div
-          v-if="detailModal.show"
+          v-if="detailModal.show && activeTab === 'patients'"
           class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
           @click.self="detailModal.show = false"
         >
+          <!-- modal content same as before -->
           <div class="bg-white rounded-3xl border border-slate-200 shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
             <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-indigo-900 px-6 py-5 text-white flex justify-between items-center">
               <div>
@@ -311,11 +338,15 @@ import CountryChart from '../components/CountryChart.vue'
 import RegistrationsChart from '../components/RegistrationsChart.vue'
 import ResponsiveTable from '../components/ResponsiveTable.vue'
 import Pagination from '../components/Pagination.vue'
+import SiteAnalytics from '../components/SiteAnalytics.vue' // <-- new import
 
 const router = useRouter()
 const { patients, inquiries, loading } = useWixData()
 
-// --- Filter state ---
+// New tab state
+const activeTab = ref('patients')
+
+// --- Rest of your existing script code (unchanged) ---
 const dateFrom = ref('')
 const dateTo = ref('')
 const activeProcedureFilter = ref('')
@@ -329,7 +360,6 @@ const hasActiveFilters = computed(() => {
   return dateFrom.value || dateTo.value || activeProcedureFilter.value || ageFilter.value || countryFilter.value || monthFilter.value || pastSurgeriesFilter.value || bmiHighRiskFilter.value
 })
 
-// --- Helper functions ---
 const isWithinRange = (dateStr) => {
   if (!dateStr) return false
   const d = new Date(dateStr)
@@ -359,7 +389,6 @@ const monthMatch = (dateStr, monthKey) => {
   return key === monthKey
 }
 
-// Master filtered list
 const filteredPatients = computed(() => {
   let list = patients.value || []
   if (dateFrom.value || dateTo.value) list = list.filter(p => isWithinRange(p.createdDate))
@@ -375,7 +404,6 @@ const filteredPatients = computed(() => {
   return list
 })
 
-// --- Stats ---
 const totalPatients = computed(() => filteredPatients.value.length)
 const mostRequestedProc = computed(() => {
   const map = {}
@@ -471,7 +499,6 @@ const registrationsTimeSeries = computed(() => {
 const recentInquiries = computed(() => (inquiries.value || []).slice(0, 15))
 const totalInquiries = computed(() => (inquiries.value || []).length)
 
-// --- Table pagination ---
 const displayedPatients = computed(() => filteredPatients.value)
 const tablePageSize = 10
 const tablePage = ref(1)
@@ -481,7 +508,6 @@ const paginatedDisplayedPatients = computed(() => {
 })
 const handleTablePageChange = (page) => { tablePage.value = page }
 
-// --- Event handlers ---
 const handleAgeClick = (label) => { ageFilter.value = label; tablePage.value = 1 }
 const handleCountryClick = (label) => { countryFilter.value = label; tablePage.value = 1 }
 const handleMonthClick = (monthLabel) => { monthFilter.value = monthLabel; tablePage.value = 1 }
@@ -500,7 +526,6 @@ const resetAllFilters = () => {
   tablePage.value = 1
 }
 
-// --- Detail modal ---
 const detailModal = reactive({ show: false, title: '', subtitle: '', type: '', patients: [] })
 const openDetailModal = (cardType) => {
   let patientsSubset = []

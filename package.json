@@ -9,6 +9,7 @@
     "vercel-build": "npm run build"
   },
   "dependencies": {
+    "@google-analytics/data": "^7.0.0",
     "chart.js": "^4.5.1",
     "firebase": "^10.0.0",
     "jspdf": "^4.2.1",
