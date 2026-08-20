@@ -1,5 +1,4 @@
 <template>
-  <!-- Desktop table -->
   <div class="hidden md:block overflow-x-auto bg-white rounded-2xl shadow">
     <table class="min-w-full">
       <thead class="bg-slate-100">
@@ -13,10 +12,18 @@
           <td class="px-5 py-3 font-medium">{{ item.name || 'Anonymous' }}<div v-if="item.email" class="text-xs text-slate-400">{{ item.email }}</div></td>
           <td class="px-5 py-3">{{ item.selectedProcedure || '—' }}</td>
           <td class="px-5 py-3">{{ item.age || '—' }}</td>
-          <td class="px-5 py-3">{{ item.Country || item.phone || '—' }}</td>
+          <td class="px-5 py-3">{{ item.phone || '—' }}</td>
           <td class="px-5 py-3">{{ formatPrice(item.calculatedPrice) }}</td>
+          <td class="px-5 py-3">
+            <span :class="isDone(item.id) ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'" class="px-2 py-1 rounded-full text-xs font-semibold">
+              {{ isDone(item.id) ? 'Done' : 'Active' }}
+            </span>
+          </td>
           <td v-if="actions" class="px-5 py-3 flex gap-2">
             <button @click="$emit('view', item)" class="text-indigo-600 hover:underline text-sm"><i class="fas fa-eye"></i></button>
+            <button @click="$emit('toggle-status', item)" class="text-amber-500 hover:text-amber-700" :title="isDone(item.id) ? 'Mark as Active' : 'Mark as Done'">
+              <i :class="isDone(item.id) ? 'fas fa-undo' : 'fas fa-check-circle'"></i>
+            </button>
             <button @click="$emit('delete', item.id)" class="text-red-500 hover:text-red-700"><i class="fas fa-trash-alt"></i></button>
           </td>
         </tr>
@@ -27,7 +34,6 @@
     </table>
   </div>
 
-  <!-- Mobile cards -->
   <div class="md:hidden space-y-4">
     <div v-for="item in data" :key="item.id" class="bg-white rounded-xl shadow p-4">
       <div class="flex justify-between items-start">
@@ -37,6 +43,7 @@
         </div>
         <span v-if="actions" class="flex gap-2">
           <button @click="$emit('view', item)" class="text-indigo-600"><i class="fas fa-eye"></i></button>
+          <button @click="$emit('toggle-status', item)" class="text-amber-500"><i :class="isDone(item.id) ? 'fas fa-undo' : 'fas fa-check-circle'"></i></button>
           <button @click="$emit('delete', item.id)" class="text-red-500"><i class="fas fa-trash-alt"></i></button>
         </span>
       </div>
@@ -45,6 +52,9 @@
         <div class="flex justify-between"><dt class="text-slate-500">Age:</dt><dd>{{ item.age || '—' }}</dd></div>
         <div class="flex justify-between"><dt class="text-slate-500">Phone:</dt><dd>{{ item.phone || '—' }}</dd></div>
         <div class="flex justify-between"><dt class="text-slate-500">Price:</dt><dd>{{ formatPrice(item.calculatedPrice) }}</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500">Status:</dt>
+          <dd><span :class="isDone(item.id) ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'" class="px-2 py-1 rounded-full text-xs font-semibold">{{ isDone(item.id) ? 'Done' : 'Active' }}</span></dd>
+        </div>
       </dl>
     </div>
     <div v-if="!data.length" class="text-center py-8 text-slate-400 bg-white rounded-xl shadow">No data found.</div>
@@ -52,13 +62,19 @@
 </template>
 
 <script setup>
+import { usePatientStatus } from '../composables/usePatientStatus'
+
 defineProps({
   headers: { type: Array, required: true },
   data: { type: Array, default: () => [] },
   actions: { type: Boolean, default: false }
 })
 
-defineEmits(['view', 'delete'])
+defineEmits(['view', 'delete', 'toggle-status'])
+
+const { statuses } = usePatientStatus()
+
+const isDone = (patientId) => statuses.value[patientId] === true
 
 const formatPrice = (price) => {
   if (!price) return '—'

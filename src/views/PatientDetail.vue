@@ -2,11 +2,21 @@
   <div class="min-h-screen bg-slate-50/50">
     <NavBar />
     
+    
     <div class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
+      <div class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
       <div class="flex items-center justify-between">
         <router-link to="/patients" class="text-indigo-600 hover:text-indigo-700 font-semibold inline-flex items-center gap-2 text-sm bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm hover:shadow transition">
           <i class="fas fa-arrow-left text-xs"></i> Return to Registry Queue
         </router-link>
+        <button
+          @click="toggleStatus"
+          class="px-4 py-2 rounded-xl font-semibold text-sm transition flex items-center gap-2"
+          :class="isDone ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'"
+        >
+          <i :class="isDone ? 'fas fa-undo' : 'fas fa-check-circle'"></i>
+          {{ isDone ? 'Mark as Active' : 'Mark as Done' }}
+        </button>
       </div>
       
       <div v-if="patient" class="space-y-6">

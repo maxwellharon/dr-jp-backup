@@ -63,6 +63,14 @@
   📄 Reports
 </router-link>
 
+<router-link
+  to="/settings"
+  active-class="bg-indigo-600 text-white border border-indigo-500"
+  class="text-slate-300 hover:text-white hover:bg-slate-800 px-3.5 py-2 rounded-xl transition-all flex items-center gap-2"
+>
+  ⚙️ Settings
+</router-link>
+
           <div class="h-5 w-px bg-slate-700 mx-2"></div>
 
           <div
@@ -158,6 +166,15 @@
   class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3"
 >
   <i class="fas fa-file-alt w-5 opacity-70 text-center"></i> Report Exports
+</router-link>
+
+<router-link
+  to="/settings"
+  @click="mobileOpen = false"
+  active-class="bg-indigo-600 text-white"
+  class="text-slate-300 hover:text-white hover:bg-slate-800 p-3 rounded-xl transition-all flex items-center gap-3"
+>
+  <i class="fas fa-cog w-5 opacity-70 text-center"></i> Settings
 </router-link>
 
         <div class="h-px bg-slate-800 my-2"></div>

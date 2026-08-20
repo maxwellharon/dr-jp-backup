@@ -36,6 +36,11 @@
         </div>
       </div>
 
+      <div class="flex gap-4 text-sm">
+  <span class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-semibold">Active: {{ activeCount }}</span>
+  <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-semibold">Done: {{ doneCount }}</span>
+</div>
+
       <!-- Tab Navigation -->
       <div class="flex gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
         <button
@@ -327,7 +332,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useWixData } from '../composables/useWixData'
 import NavBar from '../components/NavBar.vue'
@@ -339,9 +344,24 @@ import RegistrationsChart from '../components/RegistrationsChart.vue'
 import ResponsiveTable from '../components/ResponsiveTable.vue'
 import Pagination from '../components/Pagination.vue'
 import SiteAnalytics from '../components/SiteAnalytics.vue' // <-- new import
+import { usePatientStatus } from '../composables/usePatientStatus'
+
+
+
 
 const router = useRouter()
 const { patients, inquiries, loading } = useWixData()
+const { statuses, loadStatuses, toggleStatus } = usePatientStatus()
+
+onMounted(() => loadStatuses())
+
+const togglePatientStatus = async (patient) => {
+  const done = statuses.value[patient.id] === true
+  await toggleStatus(patient.id, done)
+}
+
+const activeCount = computed(() => (patients.value || []).filter(p => !statuses.value[p.id]).length)
+const doneCount = computed(() => (patients.value || []).filter(p => statuses.value[p.id] === true).length)
 
 // New tab state
 const activeTab = ref('patients')

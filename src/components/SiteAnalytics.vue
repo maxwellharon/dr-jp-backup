@@ -328,6 +328,18 @@ const aiInsights = computed(() => {
       iconBg: 'bg-indigo-50 text-indigo-600'
     },
     {
+  title: 'Conversion Potential',
+  message: `High interest on pricing and quote pages indicates strong purchase intent. Optimize CTAs to maximize conversions.`,
+  icon: 'fas fa-tags',
+  iconBg: 'bg-orange-50 text-orange-600'
+},
+{
+  title: 'Social Media Impact',
+  message: `Instagram traffic shows significant growth (+314%). Consider increasing investment in social media marketing.`,
+  icon: 'fas fa-share-alt',
+  iconBg: 'bg-pink-50 text-pink-600'
+},
+    {
       title: 'Top Performing Page',
       message: `"${topPage}" is your most visited page. Ensure it has clear CTAs and fast loading times to convert visitors.`,
       icon: 'fas fa-file-alt',

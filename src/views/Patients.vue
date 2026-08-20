@@ -1,7 +1,6 @@
 <template>
   <div class="min-h-screen bg-slate-50/50">
     <NavBar />
-    
     <div class="p-4 md:p-8 max-w-7xl mx-auto space-y-6">
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
@@ -15,8 +14,7 @@
         </button>
       </div>
 
-      <!-- Filters -->
-      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div class="relative">
           <i class="fas fa-search absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
           <input 
@@ -30,6 +28,15 @@
           <select v-model="procFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white transition text-sm text-slate-700 appearance-none">
             <option value="">All Procedures</option>
             <option v-for="p in uniqueProcedures" :key="p" :value="p">{{ p }}</option>
+          </select>
+          <i class="fas fa-chevron-down absolute right-3.5 top-4 text-slate-400 pointer-events-none text-xs"></i>
+        </div>
+
+        <div class="relative">
+          <select v-model="statusFilter" class="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none bg-white transition text-sm text-slate-700 appearance-none">
+            <option value="all">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="done">Done</option>
           </select>
           <i class="fas fa-chevron-down absolute right-3.5 top-4 text-slate-400 pointer-events-none text-xs"></i>
         </div>
@@ -49,7 +56,6 @@
         </button>
       </div>
 
-      <!-- Loading -->
       <div v-if="loading" class="bg-white rounded-2xl border border-slate-200 shadow-sm py-20 flex flex-col items-center justify-center space-y-3">
         <div class="animate-spin rounded-full h-10 w-10 border-4 border-slate-200 border-t-indigo-600"></div>
         <p class="text-sm font-medium text-slate-500">Querying live clinical indexes...</p>
@@ -62,7 +68,8 @@
             :data="paginatedPatients" 
             :actions="true" 
             @view="goToPatient" 
-            @delete="handleDelete" 
+            @delete="handleDelete"
+            @toggle-status="togglePatientStatus"
           />
         </div>
 
@@ -93,26 +100,27 @@ import NavBar from '../components/NavBar.vue'
 import ResponsiveTable from '../components/ResponsiveTable.vue'
 import Pagination from '../components/Pagination.vue'
 import UploadModal from '../components/UploadModal.vue'
+import { usePatientStatus } from '../composables/usePatientStatus'
 
 const router = useRouter()
 const route = useRoute()
-const { patients, loading, deletePatient } = useWixData() // Note: useWixData doesn't have deletePatient, we'll need to implement deletion via API if needed. For now we'll comment out the delete functionality or use a placeholder.
+const { patients, loading } = useWixData()
+const { statuses, loadStatuses, toggleStatus } = usePatientStatus()
 
 const search = ref('')
 const procFilter = ref('')
+const statusFilter = ref('all')
 const sortBy = ref('recent')
 const showUpload = ref(false)
 const currentPage = ref(1)
 const pageSize = 10
 
-const headers = ['Name', 'Procedure', 'Age', 'Phone', 'Price (KES)']
+const headers = ['Name', 'Procedure', 'Age', 'Phone', 'Price (KES)', 'Status']
 
 onMounted(() => {
+  loadStatuses()
   if (route.query.procedure) procFilter.value = route.query.procedure
-  if (route.query.nonSurgical === 'true') {
-    // Not implemented in patients list filter, but could be added.
-    // We'll ignore for brevity.
-  }
+  if (route.query.status) statusFilter.value = route.query.status
   if (route.query.search) search.value = route.query.search
 })
 
@@ -124,7 +132,7 @@ const uniqueProcedures = computed(() => {
 const filteredPatients = computed(() => {
   const baseList = patients.value || []
   let list = [...baseList]
-  
+
   if (search.value) {
     const s = search.value.toLowerCase().trim()
     list = list.filter(p => {
@@ -136,11 +144,17 @@ const filteredPatients = computed(() => {
       return name.includes(s) || email.includes(s) || procedure.includes(s) || phone.includes(s)
     })
   }
-  
+
   if (procFilter.value) {
     list = list.filter(p => p?.selectedProcedure === procFilter.value)
   }
-  
+
+  if (statusFilter.value === 'done') {
+    list = list.filter(p => statuses.value[p.id] === true)
+  } else if (statusFilter.value === 'active') {
+    list = list.filter(p => !statuses.value[p.id])
+  }
+
   if (sortBy.value === 'recent') {
     list.sort((a, b) => (new Date(b?.createdDate || 0) - new Date(a?.createdDate || 0)))
   } else if (sortBy.value === 'name-az') {
@@ -150,7 +164,7 @@ const filteredPatients = computed(() => {
   } else if (sortBy.value === 'price-high') {
     list.sort((a, b) => Number(b?.calculatedPrice || 0) - Number(a?.calculatedPrice || 0))
   }
-  
+
   return list
 })
 
@@ -170,6 +184,7 @@ const handlePageChange = (page) => { currentPage.value = page }
 const clearFilters = () => {
   search.value = ''
   procFilter.value = ''
+  statusFilter.value = 'all'
   sortBy.value = 'recent'
   currentPage.value = 1
   router.replace({ query: {} })
@@ -179,9 +194,12 @@ const goToPatient = (patient) => {
   if (patient?.id) router.push(`/patients/${patient.id}`)
 }
 
+const togglePatientStatus = async (patient) => {
+  const done = statuses.value[patient.id] === true
+  await toggleStatus(patient.id, done)
+}
+
 const handleDelete = async (id) => {
-  // Deletion not implemented with Wix API, but you can add a fetch to delete endpoint.
-  // For now, show a warning.
   alert('Delete functionality requires a Wix API endpoint. Coming soon.')
 }
 
