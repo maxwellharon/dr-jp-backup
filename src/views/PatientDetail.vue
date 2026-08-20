@@ -217,6 +217,9 @@ const bmiColorClass = (bmi) => {
   return 'bg-sky-50 text-sky-700 border border-sky-200'
 }
 
+
+
+
 const formatRawMoneyValue = (price) => {
   if (!price) return '0'
   return new Intl.NumberFormat('en-KE').format(Math.round(price))
