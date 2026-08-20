@@ -1,9 +1,99 @@
 <template>
   <div class="space-y-6">
+    <!-- Filter Bar -->
+    <div v-if="gaData" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-end">
+      <!-- Date Range -->
+      <div class="flex flex-col">
+        <label class="text-xs font-semibold text-slate-500 mb-1">From</label>
+        <input
+          type="date"
+          v-model="dateFrom"
+          :min="minDate"
+          :max="dateTo"
+          class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+        />
+      </div>
+      <div class="flex flex-col">
+        <label class="text-xs font-semibold text-slate-500 mb-1">To</label>
+        <input
+          type="date"
+          v-model="dateTo"
+          :min="dateFrom"
+          :max="maxDate"
+          class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none"
+        />
+      </div>
+
+      <!-- Source Filter -->
+      <div class="flex flex-col">
+        <label class="text-xs font-semibold text-slate-500 mb-1">Source</label>
+        <select v-model="sourceFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
+          <option value="all">All Sources</option>
+          <option v-for="src in trafficSources" :key="src.source" :value="src.source">{{ src.source }}</option>
+        </select>
+      </div>
+
+      <!-- Country Filter -->
+      <div class="flex flex-col">
+        <label class="text-xs font-semibold text-slate-500 mb-1">Country</label>
+        <select v-model="countryFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
+          <option value="all">All Countries</option>
+          <option v-for="c in topCountries" :key="c.country" :value="c.country">{{ c.country }}</option>
+        </select>
+      </div>
+
+      <!-- Device Filter -->
+      <div class="flex flex-col">
+        <label class="text-xs font-semibold text-slate-500 mb-1">Device</label>
+        <select v-model="deviceFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
+          <option value="all">All Devices</option>
+          <option v-for="d in deviceCategories" :key="d.device" :value="d.device">{{ d.device }}</option>
+        </select>
+      </div>
+
+      <!-- Customize Button -->
+      <button
+        @click="showCustomize = !showCustomize"
+        class="ml-auto bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition flex items-center gap-2"
+      >
+        <i class="fas fa-sliders-h"></i> Customize
+      </button>
+    </div>
+
+    <!-- Customize Panel -->
+    <Transition name="fade">
+      <div v-if="showCustomize" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm grid grid-cols-2 md:grid-cols-3 gap-3">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" v-model="showSummaryCards" class="rounded text-indigo-600 focus:ring-indigo-500" />
+          Summary Cards
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" v-model="showAdditionalMetrics" class="rounded text-indigo-600 focus:ring-indigo-500" />
+          Additional Metrics
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" v-model="showCharts" class="rounded text-indigo-600 focus:ring-indigo-500" />
+          Charts
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" v-model="showTrafficSources" class="rounded text-indigo-600 focus:ring-indigo-500" />
+          Traffic Sources
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" v-model="showDeviceCategories" class="rounded text-indigo-600 focus:ring-indigo-500" />
+          Device Categories
+        </label>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" v-model="showAiInsights" class="rounded text-indigo-600 focus:ring-indigo-500" />
+          AI Insights
+        </label>
+      </div>
+    </Transition>
+
     <!-- Loading state -->
     <div v-if="loading" class="flex flex-col items-center justify-center py-20">
       <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-indigo-600"></div>
-      <p class="text-sm font-medium text-slate-500 mt-4">Fetching site analytics from Google...</p>
+      <p class="text-sm font-medium text-slate-500 mt-4">Fetching site analytics...</p>
     </div>
 
     <!-- Error state -->
@@ -16,48 +106,48 @@
       </button>
     </div>
 
-    <!-- GA Data -->
+    <!-- Main Content -->
     <template v-else-if="gaData">
       <!-- Summary Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div v-if="showSummaryCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <div class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-indigo-500 hover:shadow-lg transition transform hover:-translate-y-1">
           <div class="text-slate-500 text-sm">Total Users</div>
-          <div class="text-3xl font-bold">{{ formatNumber(summary.totalUsers) }}</div>
+          <div class="text-3xl font-bold">{{ formatNumber(filteredSummary.totalUsers) }}</div>
         </div>
         <div class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-emerald-500 hover:shadow-lg transition transform hover:-translate-y-1">
           <div class="text-slate-500 text-sm">New Users</div>
-          <div class="text-3xl font-bold">{{ formatNumber(summary.newUsers) }}</div>
+          <div class="text-3xl font-bold">{{ formatNumber(filteredSummary.newUsers) }}</div>
         </div>
         <div class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-amber-500 hover:shadow-lg transition transform hover:-translate-y-1">
           <div class="text-slate-500 text-sm">Sessions</div>
-          <div class="text-3xl font-bold">{{ formatNumber(summary.sessions) }}</div>
+          <div class="text-3xl font-bold">{{ formatNumber(filteredSummary.sessions) }}</div>
         </div>
         <div class="bg-white p-5 rounded-2xl shadow-md border-l-8 border-rose-500 hover:shadow-lg transition transform hover:-translate-y-1">
           <div class="text-slate-500 text-sm">Page Views</div>
-          <div class="text-3xl font-bold">{{ formatNumber(summary.screenPageViews) }}</div>
+          <div class="text-3xl font-bold">{{ formatNumber(filteredSummary.screenPageViews) }}</div>
         </div>
       </div>
 
       <!-- Additional Metrics -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div v-if="showAdditionalMetrics" class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <p class="text-xs font-medium text-slate-400 uppercase">Avg Engagement Time</p>
-          <p class="text-2xl font-bold text-slate-800">{{ formatDuration(summary.averageSessionDuration) }}</p>
+          <p class="text-2xl font-bold text-slate-800">{{ formatDuration(filteredSummary.averageSessionDuration) }}</p>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <p class="text-xs font-medium text-slate-400 uppercase">Bounce Rate</p>
-          <p class="text-2xl font-bold text-slate-800">{{ summary.bounceRate }}%</p>
+          <p class="text-2xl font-bold text-slate-800">{{ filteredSummary.bounceRate }}%</p>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <p class="text-xs font-medium text-slate-400 uppercase">Engagement Rate</p>
-          <p class="text-2xl font-bold text-slate-800">{{ summary.engagementRate }}%</p>
+          <p class="text-2xl font-bold text-slate-800">{{ filteredSummary.engagementRate }}%</p>
         </div>
       </div>
 
       <!-- Charts Row -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div v-if="showCharts" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-          <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Visitors (Last 30 Days)</h3>
+          <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Visitors (Filtered)</h3>
           <canvas ref="visitorsCanvas" height="250"></canvas>
         </div>
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
@@ -72,19 +162,19 @@
 
       <!-- Traffic sources & devices -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <div v-if="showTrafficSources" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Traffic Sources</h3>
           <div class="space-y-2">
-            <div v-for="src in trafficSources" :key="src.source" class="flex justify-between items-center">
+            <div v-for="src in filteredTrafficSources" :key="src.source" class="flex justify-between items-center">
               <span class="text-sm text-slate-600">{{ src.source }}</span>
               <span class="font-semibold text-slate-800">{{ src.sessions }}</span>
             </div>
           </div>
         </div>
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <div v-if="showDeviceCategories" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Device Categories</h3>
           <div class="space-y-2">
-            <div v-for="dev in deviceCategories" :key="dev.device" class="flex justify-between items-center">
+            <div v-for="dev in filteredDeviceCategories" :key="dev.device" class="flex justify-between items-center">
               <span class="text-sm text-slate-600 capitalize">{{ dev.device }}</span>
               <span class="font-semibold text-slate-800">{{ dev.sessions }}</span>
             </div>
@@ -93,7 +183,7 @@
       </div>
 
       <!-- AI Insights -->
-      <div class="bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white border border-purple-200 rounded-3xl p-6 md:p-8 shadow-sm">
+      <div v-if="showAiInsights" class="bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white border border-purple-200 rounded-3xl p-6 md:p-8 shadow-sm">
         <div class="flex items-center gap-3 mb-6">
           <span class="h-10 w-10 bg-purple-600 text-white rounded-xl flex items-center justify-center text-sm shadow-md shadow-purple-500/20">
             <i class="fas fa-brain animate-pulse"></i>
@@ -126,6 +216,21 @@ import Chart from 'chart.js/auto'
 
 const { gaData, loading, error, refresh } = useGoogleAnalytics()
 
+// Filter state
+const dateFrom = ref('')
+const dateTo = ref('')
+const sourceFilter = ref('all')
+const countryFilter = ref('all')
+const deviceFilter = ref('all')
+const showCustomize = ref(false)
+const showSummaryCards = ref(true)
+const showAdditionalMetrics = ref(true)
+const showCharts = ref(true)
+const showTrafficSources = ref(true)
+const showDeviceCategories = ref(true)
+const showAiInsights = ref(true)
+
+// Canvas refs
 const visitorsCanvas = ref(null)
 const countriesCanvas = ref(null)
 const pagesCanvas = ref(null)
@@ -133,20 +238,84 @@ let visitorsChart = null
 let countriesChart = null
 let pagesChart = null
 
-const summary = computed(() => gaData.value?.summary || {})
-const timeSeries = computed(() => gaData.value?.timeSeries || [])
-const topCountries = computed(() => gaData.value?.topCountries || [])
-const topPages = computed(() => gaData.value?.topPages || [])
-const trafficSources = computed(() => gaData.value?.trafficSources || [])
-const deviceCategories = computed(() => gaData.value?.deviceCategories || [])
+// Get raw data
+const rawSummary = computed(() => gaData.value?.summary || {})
+const rawTimeSeries = computed(() => gaData.value?.timeSeries || [])
+const rawTopPages = computed(() => gaData.value?.topPages || [])
+const rawTopCountries = computed(() => gaData.value?.topCountries || [])
+const rawTrafficSources = computed(() => gaData.value?.trafficSources || [])
+const rawDeviceCategories = computed(() => gaData.value?.deviceCategories || [])
 
+// Date range bounds
+const minDate = computed(() => {
+  if (rawTimeSeries.value.length === 0) return ''
+  return rawTimeSeries.value[0].date
+})
+const maxDate = computed(() => {
+  if (rawTimeSeries.value.length === 0) return ''
+  return rawTimeSeries.value[rawTimeSeries.value.length - 1].date
+})
+
+// Initialize date range when data loads
+watch(rawTimeSeries, (newVal) => {
+  if (newVal && newVal.length > 0 && !dateFrom.value) {
+    dateFrom.value = newVal[0].date
+    dateTo.value = newVal[newVal.length - 1].date
+  }
+}, { immediate: true })
+
+// Filter time series by date range
+const filteredTimeSeries = computed(() => {
+  if (!dateFrom.value || !dateTo.value) return rawTimeSeries.value
+  return rawTimeSeries.value.filter(d => d.date >= dateFrom.value && d.date <= dateTo.value)
+})
+
+// Compute filtered summary from filtered time series
+const filteredSummary = computed(() => {
+  const ts = filteredTimeSeries.value
+  if (ts.length === 0) return rawSummary.value
+  const totalUsers = ts.reduce((s, d) => s + d.activeUsers, 0)
+  const newUsers = ts.reduce((s, d) => s + d.newUsers, 0)
+  const sessions = ts.reduce((s, d) => s + d.sessions, 0)
+  const pageviews = ts.reduce((s, d) => s + d.pageviews, 0)
+  return {
+    totalUsers,
+    newUsers,
+    sessions,
+    screenPageViews: pageviews,
+    // Keep other metrics from raw summary (can't be recomputed per-day)
+    averageSessionDuration: rawSummary.value.averageSessionDuration,
+    bounceRate: rawSummary.value.bounceRate,
+    engagementRate: rawSummary.value.engagementRate,
+  }
+})
+
+// Filter traffic sources
+const filteredTrafficSources = computed(() => {
+  if (sourceFilter.value === 'all') return rawTrafficSources.value
+  return rawTrafficSources.value.filter(s => s.source === sourceFilter.value)
+})
+
+// Filter device categories
+const filteredDeviceCategories = computed(() => {
+  if (deviceFilter.value === 'all') return rawDeviceCategories.value
+  return rawDeviceCategories.value.filter(d => d.device === deviceFilter.value)
+})
+
+// Filter countries (for chart and list)
+const filteredCountries = computed(() => {
+  if (countryFilter.value === 'all') return rawTopCountries.value
+  return rawTopCountries.value.filter(c => c.country === countryFilter.value)
+})
+
+// AI Insights (unchanged logic, using filtered summary where possible)
 const aiInsights = computed(() => {
   if (!gaData.value) return []
-  const s = summary.value
-  const topCountry = topCountries.value[0]?.country || 'Kenya'
-  const topPage = topPages.value[0]?.pagePath || 'Home'
-  const topSource = trafficSources.value[0]?.source || 'Direct'
-  const mobileSessions = Number(deviceCategories.value.find(d => d.device === 'mobile')?.sessions || 0)
+  const s = filteredSummary.value
+  const topCountry = filteredCountries.value[0]?.country || 'Kenya'
+  const topPage = rawTopPages.value[0]?.pagePath || 'Home'
+  const topSource = filteredTrafficSources.value[0]?.source || 'Direct'
+  const mobileSessions = Number(filteredDeviceCategories.value.find(d => d.device === 'mobile')?.sessions || 0)
   const totalSessions = Number(s.sessions) || 1
   const mobilePercent = Math.round((mobileSessions / totalSessions) * 100)
   const bounce = Number(s.bounceRate) || 0
@@ -191,36 +360,23 @@ const aiInsights = computed(() => {
   ]
 })
 
-function formatNumber(value) {
-  if (!value) return '0'
-  return Number(value).toLocaleString('en-KE')
-}
-
-function formatDuration(seconds) {
-  if (!seconds) return '0s'
-  const sec = Number(seconds)
-  const mins = Math.floor(sec / 60)
-  const remainingSec = Math.round(sec % 60)
-  return `${mins}m ${remainingSec}s`
-}
-
+// Chart creation
 function createCharts() {
   if (!gaData.value) return
 
-  // Destroy existing charts
   if (visitorsChart) visitorsChart.destroy()
   if (countriesChart) countriesChart.destroy()
   if (pagesChart) pagesChart.destroy()
 
-  // Visitors chart
-  if (visitorsCanvas.value) {
+  // Visitors line chart (using filtered time series)
+  if (visitorsCanvas.value && filteredTimeSeries.value.length) {
     visitorsChart = new Chart(visitorsCanvas.value, {
       type: 'line',
       data: {
-        labels: timeSeries.value.map(d => formatDate(d.date)),
+        labels: filteredTimeSeries.value.map(d => formatDate(d.date)),
         datasets: [{
           label: 'Active Users',
-          data: timeSeries.value.map(d => Number(d.activeUsers)),
+          data: filteredTimeSeries.value.map(d => Number(d.activeUsers)),
           fill: false,
           borderColor: '#6366f1',
           tension: 0.1,
@@ -235,14 +391,14 @@ function createCharts() {
     })
   }
 
-  // Countries chart
-  if (countriesCanvas.value) {
+  // Countries pie chart (using filtered countries)
+  if (countriesCanvas.value && filteredCountries.value.length) {
     countriesChart = new Chart(countriesCanvas.value, {
       type: 'pie',
       data: {
-        labels: topCountries.value.map(c => c.country),
+        labels: filteredCountries.value.map(c => c.country),
         datasets: [{
-          data: topCountries.value.map(c => Number(c.sessions)),
+          data: filteredCountries.value.map(c => Number(c.sessions)),
           backgroundColor: ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16'],
           borderWidth: 0
         }]
@@ -254,15 +410,15 @@ function createCharts() {
     })
   }
 
-  // Pages chart
-  if (pagesCanvas.value) {
+  // Pages bar chart (top pages unchanged)
+  if (pagesCanvas.value && rawTopPages.value.length) {
     pagesChart = new Chart(pagesCanvas.value, {
       type: 'bar',
       data: {
-        labels: topPages.value.map(p => p.pagePath.substring(0, 20) + (p.pagePath.length > 20 ? '...' : '')),
+        labels: rawTopPages.value.map(p => p.pagePath.substring(0, 20) + (p.pagePath.length > 20 ? '...' : '')),
         datasets: [{
           label: 'Page Views',
-          data: topPages.value.map(p => Number(p.pageviews)),
+          data: rawTopPages.value.map(p => Number(p.pageviews)),
           backgroundColor: '#818cf8',
           borderRadius: 8
         }]
@@ -282,10 +438,22 @@ function formatDate(dateStr) {
   return d.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' })
 }
 
-watch(gaData, (newData) => {
-  if (newData) {
-    nextTick(() => createCharts())
-  }
+function formatNumber(value) {
+  if (!value) return '0'
+  return Number(value).toLocaleString('en-KE')
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return '0s'
+  const sec = Number(seconds)
+  const mins = Math.floor(sec / 60)
+  const remainingSec = Math.round(sec % 60)
+  return `${mins}m ${remainingSec}s`
+}
+
+// Watch for changes that affect charts
+watch([filteredTimeSeries, filteredCountries], () => {
+  nextTick(() => createCharts())
 })
 
 onMounted(() => {
@@ -293,4 +461,22 @@ onMounted(() => {
     nextTick(() => createCharts())
   }
 })
-</script> 
+
+// Watch for data load
+watch(gaData, (newData) => {
+  if (newData) {
+    nextTick(() => createCharts())
+  }
+})
+</script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
