@@ -2,9 +2,7 @@
   <div class="min-h-screen bg-slate-50/50">
     <NavBar />
     
-    
     <div class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
-      <div class="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
       <div class="flex items-center justify-between">
         <router-link to="/patients" class="text-indigo-600 hover:text-indigo-700 font-semibold inline-flex items-center gap-2 text-sm bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm hover:shadow transition">
           <i class="fas fa-arrow-left text-xs"></i> Return to Registry Queue
@@ -161,14 +159,25 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useWixData } from '../composables/useWixData'
 import NavBar from '../components/NavBar.vue'
+import { usePatientStatus } from '../composables/usePatientStatus'
 
 const route = useRoute()
 const { patients } = useWixData()
+const { statuses, toggleStatus: toggleStatusApi } = usePatientStatus()
 
 const patient = computed(() => {
   const currentStack = patients.value || []
   return currentStack.find(p => String(p.id) === String(route.params.id)) || null
 })
+
+const isDone = computed(() => {
+  return patient.value ? statuses.value[patient.value.id] === true : false
+})
+
+const toggleStatus = async () => {
+  if (!patient.value) return
+  await toggleStatusApi(patient.value.id, isDone.value)
+}
 
 const hasSmokingRisk = computed(() => {
   if (!patient.value) return false
@@ -216,9 +225,6 @@ const bmiColorClass = (bmi) => {
   if (num >= 18.5) return 'bg-emerald-50 text-emerald-700 border border-emerald-200'
   return 'bg-sky-50 text-sky-700 border border-sky-200'
 }
-
-
-
 
 const formatRawMoneyValue = (price) => {
   if (!price) return '0'
