@@ -376,15 +376,15 @@ const handleCancelAutomation = async (id) => {
   alert('Automation cancelled.')
 }
 
-// Helper: generate chart image from config
-async function generateChartImage(config, width = 600, height = 300) {
+// Helper: generate chart image as JPEG data URL (crisp and compact)
+async function generateChartImage(config, width = 1000, height = 500) {
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')
   const chart = new Chart(ctx, config)
   await new Promise(resolve => setTimeout(resolve, 300))
-  const image = canvas.toDataURL('image/png')
+  const image = canvas.toDataURL('image/jpeg', 0.85)
   chart.destroy()
   return image
 }
@@ -446,7 +446,7 @@ async function generatePatientCharts(data) {
         }]
       },
       options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
-    }, 400, 280)
+    })
   })
 
   charts.push({
@@ -509,7 +509,7 @@ async function generateWebCharts(data) {
           }]
         },
         options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
-      }, 400, 280)
+      })
     })
   }
 
@@ -546,7 +546,7 @@ async function generateWebCharts(data) {
           }]
         },
         options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
-      }, 400, 280)
+      })
     })
   }
 
@@ -570,7 +570,6 @@ const sendNow = async () => {
   // Patient section
   if (form.dataType === 'patient' || form.dataType === 'both') {
     const rawPatients = patients.value || []
-    // Map raw patients to format expected by generateDetailedInsights
     const mappedPatients = rawPatients.map(p => ({
       procedure: p.selectedProcedure,
       price: p.calculatedPrice,
@@ -594,12 +593,35 @@ const sendNow = async () => {
         { title: 'Asset Conversion Strategy', message: `Average transaction pricing maps at KES ${new Intl.NumberFormat('en-KE').format(patientInsights.avgValue)}. Integrating flexible multi-installment healthcare financing structures could reduce drop-off.` },
         { title: 'Patient Risk Profiling Matrix', message: `${patientInsights.highBmiCount} prospective clients present a calculated BMI ≥ 30.0, and ${patientInsights.pastSurgCount} note surgical backgrounds. Automated pre-anesthetic tracking flags are recommended.` }
       )
+
+      // Add patient analytics tables
+      if (patientInsights.topProcedures.length) {
+        reportData.tables.push({
+          title: 'Top Procedures',
+          headers: ['Procedure', 'Leads'],
+          rows: patientInsights.topProcedures.map(([name, count]) => [name, count]),
+        })
+      }
+      if (patientInsights.countryDistribution.length) {
+        reportData.tables.push({
+          title: 'Geographic Distribution',
+          headers: ['Country', 'Leads', 'Percent'],
+          rows: patientInsights.countryDistribution.map(([country, count]) => [country, count, `${Math.round(count / patientInsights.total * 100)}%`]),
+        })
+      }
+      if (patientInsights.monthlyTrend.length) {
+        reportData.tables.push({
+          title: 'Monthly Registrations',
+          headers: ['Month', 'New Patients'],
+          rows: patientInsights.monthlyTrend.map(([month, count]) => [month, count]),
+        })
+      }
     }
 
     // Always generate patient charts
     reportData.images.push(...(await generatePatientCharts(rawPatients)))
 
-    // Only include detailed patient table if checkbox is selected
+    // Only include detailed patient table if checkbox selected
     if (form.includePatientData) {
       reportData.tables.push({
         title: 'Patient Records',

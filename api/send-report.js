@@ -126,7 +126,7 @@ export default async function handler(req, res) {
             y += 2;
         }
 
-        // Charts/Images
+        // Charts/Images (all images are 2:1, so display at 180x90)
         if (reportData.images && reportData.images.length > 0) {
             for (const img of reportData.images) {
                 if (y > 240) { doc.addPage(); y = 20; }
@@ -135,7 +135,7 @@ export default async function handler(req, res) {
                 doc.setTextColor(...primary);
                 doc.text(img.title, 14, y);
                 y += 4;
-                doc.addImage(img.image, 'PNG', 14, y, 180, 90);
+                doc.addImage(img.image, 'JPEG', 14, y, 180, 90);
                 y += 100;
             }
         }
