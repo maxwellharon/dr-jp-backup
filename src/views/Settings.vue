@@ -31,7 +31,7 @@
               <p class="text-xs text-emerald-600">Started {{ formatDate(auto.activatedAt?.toDate()) }}</p>
             </div>
           </div>
-          <button @click="cancelAutomation(auto.id)" class="text-red-500 hover:text-red-700 text-sm font-semibold">
+          <button @click="handleCancelAutomation(auto.id)" class="text-red-500 hover:text-red-700 text-sm font-semibold">
             <i class="fas fa-times-circle mr-1"></i> Cancel
           </button>
         </div>
@@ -275,7 +275,7 @@ import { useAutomationSettings } from '../composables/useAutomationSettings'
 import { useWixData } from '../composables/useWixData'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
 
-const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail, cancelAutomation } = useAutomationSettings()
+const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail, cancelAutomation: cancelAutomationRemote } = useAutomationSettings()
 const { procedures, patients } = useWixData()
 const { gaData } = useGoogleAnalytics()
 
@@ -375,12 +375,8 @@ const saveSettingsAndFinish = async () => {
   alert('Automation activated!')
 }
 
-const cancelAutomation = async (id) => {
-  const updatedForm = {
-    ...form,
-    activatedAt: null,
-  }
-  await saveSettings(updatedForm)
+const handleCancelAutomation = async (id) => {
+  await cancelAutomationRemote(id)
   activeAutomations.value = []
   alert('Automation cancelled.')
 }
