@@ -401,7 +401,7 @@ async function generatePatientCharts(data) {
   const procValues = topProcs.map(e => e[1])
 
   const countryMap = new Map()
-  data.forEach(p => countryMap.set(p.country, (countryMap.get(p.country) || 0) + 1))
+  data.forEach(p => countryMap.set(p.Country || 'Kenya', (countryMap.get(p.Country || 'Kenya') || 0) + 1))
   const countryLabels = [...countryMap.keys()]
   const countryValues = [...countryMap.values()]
 
@@ -416,7 +416,6 @@ async function generatePatientCharts(data) {
   const ageLabels = Object.keys(ageGroups)
   const ageValues = Object.values(ageGroups)
 
-  // Bar chart: top procedures
   charts.push({
     title: 'Top Procedures',
     image: await generateChartImage({
@@ -434,7 +433,6 @@ async function generatePatientCharts(data) {
     })
   })
 
-  // Pie chart: countries
   charts.push({
     title: 'Country Distribution',
     image: await generateChartImage({
@@ -451,7 +449,6 @@ async function generatePatientCharts(data) {
     }, 400, 280)
   })
 
-  // Bar chart: age groups
   charts.push({
     title: 'Age Distribution',
     image: await generateChartImage({
@@ -477,7 +474,6 @@ async function generateWebCharts(data) {
   const charts = []
   if (!data) return charts
 
-  // Time series line chart
   if (data.timeSeries && data.timeSeries.length > 0) {
     charts.push({
       title: 'Visitors Over Time',
@@ -499,7 +495,6 @@ async function generateWebCharts(data) {
     })
   }
 
-  // Pie chart: top countries
   if (data.topCountries && data.topCountries.length > 0) {
     charts.push({
       title: 'Top Countries',
@@ -518,7 +513,6 @@ async function generateWebCharts(data) {
     })
   }
 
-  // Bar chart: traffic sources
   if (data.trafficSources && data.trafficSources.length > 0) {
     charts.push({
       title: 'Traffic Sources',
@@ -538,7 +532,6 @@ async function generateWebCharts(data) {
     })
   }
 
-  // Doughnut chart: devices
   if (data.deviceCategories && data.deviceCategories.length > 0) {
     charts.push({
       title: 'Device Breakdown',
@@ -574,14 +567,24 @@ const sendNow = async () => {
     dateTo: form.patientDateTo || form.webDateTo,
   }
 
-  // Patient section (AI insights always; detailed data and charts only if includePatientData)
+  // Patient section
   if (form.dataType === 'patient' || form.dataType === 'both') {
-    const filteredPatients = patients.value || []
-    // Patient summary always
-    reportData.summary.totalPatients = filteredPatients.length
+    const rawPatients = patients.value || []
+    // Map raw patients to format expected by generateDetailedInsights
+    const mappedPatients = rawPatients.map(p => ({
+      procedure: p.selectedProcedure,
+      price: p.calculatedPrice,
+      bmi: p.bmi,
+      pastSurgeries: p.pastSurgeries,
+      isNonSurgical: p.isNonSurgical,
+      age: p.age,
+      country: p.Country,
+      createdDate: p.createdDate,
+    }))
 
-    // Patient AI insights always
-    const patientInsights = generateDetailedInsights(filteredPatients)
+    reportData.summary.totalPatients = mappedPatients.length
+
+    const patientInsights = generateDetailedInsights(mappedPatients)
     if (patientInsights) {
       reportData.aiInsights.push(
         { title: 'Procedure Demand Surge', message: `${patientInsights.mostRequested} leads your database, accounting for ${Math.round((patientInsights.mostRequestedCount || 0) / patientInsights.total * 100)}% of total inquiries. Ensure resource and inventory optimization for this segment.` },
@@ -593,20 +596,19 @@ const sendNow = async () => {
       )
     }
 
-    // Patient detailed data and charts only if includePatientData checked
     if (form.includePatientData) {
       reportData.tables.push({
         title: 'Patient Records',
         headers: ['Name', 'Procedure', 'Age', 'Price'],
-        rows: filteredPatients.slice(0, 10).map(p => [p.name, p.selectedProcedure, p.age, p.calculatedPrice]),
+        rows: rawPatients.slice(0, 10).map(p => [p.name, p.selectedProcedure, p.age, p.calculatedPrice]),
       })
-      reportData.images.push(...(await generatePatientCharts(filteredPatients)))
+      reportData.images.push(...(await generatePatientCharts(rawPatients)))
     }
 
     reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
   }
 
-  // Web section (AI insights and charts always)
+  // Web section
   if (form.dataType === 'web' || form.dataType === 'both') {
     if (gaData.value) {
       const summary = gaData.value.summary || {}
@@ -626,7 +628,6 @@ const sendNow = async () => {
         rows: (gaData.value.trafficSources || []).map(s => [s.source, s.sessions]),
       })
 
-      // Web AI insights
       reportData.aiInsights.push(
         { title: 'Geographic Focus', message: `The majority of your traffic comes from ${gaData.value.topCountries?.[0]?.country || 'Kenya'}. Consider localized content and targeted ads for this region.` },
         { title: 'Top Performing Page', message: `"${gaData.value.topPages?.[0]?.pagePath || 'Home'}" is your most visited page. Ensure it has clear CTAs and fast loading times to convert visitors.` },

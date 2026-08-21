@@ -96,20 +96,40 @@ export default async function handler(req, res) {
             y += 8;
 
             reportData.aiInsights.forEach(ins => {
-                if (y > 270) { doc.addPage(); y = 20; }
+                // Calculate text height
+                const lines = doc.splitTextToSize(ins.message, 174); // maxWidth = 174 (within card padding)
+                const textHeight = lines.length * 4; // approximate line height
+                const cardHeight = Math.max(20, 6 + textHeight + 5); // title + message + padding
+
+                if (y + cardHeight > 280) {
+                    doc.addPage();
+                    y = 20;
+                }
+
+                // Card background
                 doc.setFillColor(...lightBg);
-                doc.roundedRect(14, y, 182, 18, 2, 2, 'F');
+                doc.roundedRect(14, y, 182, cardHeight, 2, 2, 'F');
+
+                // Title
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(10);
                 doc.setTextColor(...accent);
                 doc.text(ins.title, 18, y + 6);
+
+                // Message lines
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(60, 60, 60);
-                doc.text(doc.splitTextToSize(ins.message, 170), 18, y + 11);
-                y += 22;
+                let lineY = y + 11;
+                lines.forEach(line => {
+                    if (lineY > y + cardHeight - 2) return; // safety
+                    doc.text(line, 18, lineY);
+                    lineY += 4;
+                });
+
+                y += cardHeight + 4;
             });
-            y += 4;
+            y += 2;
         }
 
         // Charts/Images
@@ -141,7 +161,7 @@ export default async function handler(req, res) {
                     body: table.rows,
                     theme: 'striped',
                     headStyles: { fillColor: primary, textColor: 255, fontStyle: 'bold', fontSize: 8 },
-                    styles: { fontSize: 8, cellPadding: 2, valign: 'middle' },
+                    styles: { fontSize: 8, cellPadding: 2, valign: 'middle', overflow: 'linebreak' },
                     alternateRowStyles: { fillColor: lightBg },
                     margin: { left: 14, right: 14 }
                 });
