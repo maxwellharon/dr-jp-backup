@@ -208,22 +208,6 @@ export default async function handler(req, res) {
             activeUsers: Number(row.metricValues[1].value),
         }));
 
-        // ------------------------------------------------------------
-        // 9. Retention cohort (last 7 days)
-        // ------------------------------------------------------------
-        const [retentionResponse] = await client.runReport({
-            property,
-            dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
-            dimensions: [{ name: 'cohort' }],
-            metrics: [{ name: 'cohortActiveUsers' }, { name: 'cohortTotalUsers' }],
-        });
-
-        const retention = (retentionResponse.rows || []).map(row => ({
-            cohort: row.dimensionValues[0].value,
-            cohortActiveUsers: Number(row.metricValues[0].value),
-            cohortTotalUsers: Number(row.metricValues[1].value),
-        }));
-
         console.log('✅ GA data fetched successfully');
 
         res.status(200).json({
@@ -235,7 +219,6 @@ export default async function handler(req, res) {
             deviceCategories,
             userTypes,
             hourly,
-            retention,
         });
     } catch (error) {
         console.error('❌ GA API error:', error.message);
