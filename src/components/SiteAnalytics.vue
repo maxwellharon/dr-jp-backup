@@ -1,7 +1,8 @@
 <template>
   <div class="space-y-6">
-    <!-- ================= FILTER BAR ================= -->
+    <!-- Filter Bar -->
     <div v-if="gaData" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-end">
+      <!-- Date Range -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">From</label>
         <input type="date" v-model="dateFrom" :min="minDate" :max="dateTo" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" />
@@ -10,27 +11,35 @@
         <label class="text-xs font-semibold text-slate-500 mb-1">To</label>
         <input type="date" v-model="dateTo" :min="dateFrom" :max="maxDate" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" />
       </div>
+
+      <!-- Source Filter -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">Source</label>
         <select v-model="sourceFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
           <option value="all">All Sources</option>
-          <option v-for="src in trafficSources" :key="src.sessionSource" :value="src.sessionSource">{{ src.sessionSource }}</option>
+          <option v-for="src in rawTrafficSources" :key="src.sessionSource" :value="src.sessionSource">{{ src.sessionSource }}</option>
         </select>
       </div>
+
+      <!-- Country Filter -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">Country</label>
         <select v-model="countryFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
           <option value="all">All Countries</option>
-          <option v-for="c in topCountries" :key="c.country" :value="c.country">{{ c.country }}</option>
+          <option v-for="c in rawTopCountries" :key="c.country" :value="c.country">{{ c.country }}</option>
         </select>
       </div>
+
+      <!-- Device Filter -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">Device</label>
         <select v-model="deviceFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
           <option value="all">All Devices</option>
-          <option v-for="d in deviceCategories" :key="d.deviceCategory" :value="d.deviceCategory">{{ d.deviceCategory }}</option>
+          <option v-for="d in rawDeviceCategories" :key="d.deviceCategory" :value="d.deviceCategory">{{ d.deviceCategory }}</option>
         </select>
       </div>
+
+      <!-- Customize Button -->
       <button @click="showCustomize = !showCustomize" class="ml-auto bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition flex items-center gap-2">
         <i class="fas fa-sliders-h"></i> Customize
       </button>
@@ -62,7 +71,7 @@
       <button @click="refresh" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl text-sm hover:bg-red-700 transition">Retry</button>
     </div>
 
-    <!-- ================= MAIN CONTENT ================= -->
+    <!-- Main Content -->
     <template v-else-if="gaData">
       <!-- Summary Cards (interactive) -->
       <div v-if="showSummaryCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -98,62 +107,53 @@
         </div>
       </div>
 
-      <!-- ================= CHARTS GRID ================= -->
+      <!-- Charts Grid -->
       <div v-if="showCharts" class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        <!-- Visitors Line Chart -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Active Users (Filtered)</h3>
           <canvas ref="visitorsCanvas" height="250"></canvas>
         </div>
-        <!-- Sessions vs Pageviews -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Sessions & Pageviews</h3>
           <canvas ref="sessionsCanvas" height="250"></canvas>
         </div>
-        <!-- Top Countries Bar -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Top Countries</h3>
           <canvas ref="countriesCanvas" height="250"></canvas>
         </div>
-        <!-- Top Pages Bar -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Top Pages</h3>
           <canvas ref="pagesCanvas" height="250"></canvas>
         </div>
-        <!-- Traffic Sources Doughnut -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Traffic Sources</h3>
           <canvas ref="sourcesCanvas" height="250"></canvas>
         </div>
-        <!-- Device Categories Pie -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Device Categories</h3>
           <canvas ref="devicesCanvas" height="250"></canvas>
         </div>
-        <!-- Hourly Engagement -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Sessions by Hour</h3>
           <canvas ref="hourlyCanvas" height="250"></canvas>
         </div>
-        <!-- User Types -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">New vs Returning</h3>
           <canvas ref="userTypesCanvas" height="250"></canvas>
         </div>
-        <!-- Page Engagement Scatter -->
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Page Engagement</h3>
           <canvas ref="engagementCanvas" height="250"></canvas>
         </div>
       </div>
 
-      <!-- ================= WORLD MAP ================= -->
+      <!-- World Map -->
       <div v-if="showMap" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
         <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Geographical Distribution</h3>
         <div ref="mapContainer" class="h-96 rounded-xl border border-slate-100"></div>
       </div>
 
-      <!-- ================= TRAFFIC SOURCES & DEVICES LISTS ================= -->
+      <!-- Traffic Sources & Devices Lists -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div v-if="showTrafficSources" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <h3 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Traffic Sources</h3>
@@ -175,7 +175,7 @@
         </div>
       </div>
 
-      <!-- ================= PAGE ANALYSIS TABLE ================= -->
+      <!-- Page Analysis Table -->
       <div v-if="showPageTable" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
         <h3 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Top Pages – Engagement Analysis</h3>
         <table class="min-w-full divide-y divide-slate-200">
@@ -183,24 +183,24 @@
             <tr>
               <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Page</th>
               <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Pageviews</th>
-              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Avg Time</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Avg Engagement</th>
               <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Bounce Rate</th>
-              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Exits</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Sessions</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="page in topPages" :key="page.pagePath" class="hover:bg-slate-50">
+            <tr v-for="page in rawTopPages" :key="page.pagePath" class="hover:bg-slate-50">
               <td class="px-4 py-2 text-sm font-medium text-slate-700">{{ page.pagePath }}</td>
               <td class="px-4 py-2 text-sm text-slate-600">{{ page.screenPageViews }}</td>
               <td class="px-4 py-2 text-sm text-slate-600">{{ formatDuration(page.averageEngagementTime) }}</td>
               <td class="px-4 py-2 text-sm text-slate-600">{{ page.bounceRate }}%</td>
-              <td class="px-4 py-2 text-sm text-slate-600">{{ page.exits }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ page.sessions }}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      <!-- ================= AI INSIGHTS ================= -->
+      <!-- AI Insights -->
       <div v-if="showAiInsights" class="bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white border border-purple-200 rounded-3xl p-6 md:p-8 shadow-sm">
         <div class="flex items-center gap-3 mb-6">
           <span class="h-10 w-10 bg-purple-600 text-white rounded-xl flex items-center justify-center text-sm shadow-md shadow-purple-500/20"><i class="fas fa-brain animate-pulse"></i></span>
@@ -221,7 +221,7 @@
       </div>
     </template>
 
-    <!-- ================= MODAL FOR SUMMARY CARD DETAILS ================= -->
+    <!-- Modal for Summary Card Details -->
     <Teleport to="body">
       <Transition name="fade">
         <div v-if="selectedCard" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="selectedCard = null">
@@ -232,7 +232,7 @@
             </div>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div class="bg-slate-50 p-3 rounded-xl"><p class="text-xs text-slate-500">Total</p><p class="font-bold text-lg">{{ modalTotal }}</p></div>
-              <div class="bg-slate-50 p-3 rounded-xl"><p class="text-xs text-slate-500">Daily Average</p><p class="font-bold text-lg">{{ modalAverage }}</p></div>
+              <div class="bg-slate-50 p-3 rounded-xl"><p class="text-xs text-slate-500">Daily Avg</p><p class="font-bold text-lg">{{ modalAverage }}</p></div>
               <div class="bg-slate-50 p-3 rounded-xl"><p class="text-xs text-slate-500">Max Day</p><p class="font-bold text-lg">{{ modalMax }}</p></div>
               <div class="bg-slate-50 p-3 rounded-xl"><p class="text-xs text-slate-500">Min Day</p><p class="font-bold text-lg">{{ modalMin }}</p></div>
             </div>
@@ -284,6 +284,7 @@ const mapContainer = ref(null)
 
 let map = null
 let modalChart = null
+let charts = []
 
 // ================= RAW DATA =================
 const rawSummary = computed(() => gaData.value?.summary || {})
@@ -294,7 +295,6 @@ const rawTrafficSources = computed(() => gaData.value?.trafficSources || [])
 const rawDeviceCategories = computed(() => gaData.value?.deviceCategories || [])
 const rawUserTypes = computed(() => gaData.value?.userTypes || [])
 const rawHourly = computed(() => gaData.value?.hourly || [])
-const rawRetention = computed(() => gaData.value?.retention || [])
 
 // ================= DATE BOUNDS =================
 const minDate = computed(() => rawTimeSeries.value[0]?.date || '')
@@ -348,36 +348,32 @@ const filteredCountries = computed(() => {
 
 // ================= SUMMARY CARDS =================
 const summaryCards = computed(() => [
-  { key: 'totalUsers', label: 'Total Users', value: formatNumber(filteredSummary.value.totalUsers), borderClass: 'border-indigo-500' },
-  { key: 'newUsers', label: 'New Users', value: formatNumber(filteredSummary.value.newUsers), borderClass: 'border-emerald-500' },
-  { key: 'sessions', label: 'Sessions', value: formatNumber(filteredSummary.value.sessions), borderClass: 'border-amber-500' },
-  { key: 'screenPageViews', label: 'Page Views', value: formatNumber(filteredSummary.value.screenPageViews), borderClass: 'border-rose-500' },
+  { key: 'totalUsers', label: 'Total Users', value: formatNumber(filteredSummary.value.totalUsers), borderClass: 'border-indigo-500', timeSeriesKey: 'activeUsers' },
+  { key: 'newUsers', label: 'New Users', value: formatNumber(filteredSummary.value.newUsers), borderClass: 'border-emerald-500', timeSeriesKey: 'newUsers' },
+  { key: 'sessions', label: 'Sessions', value: formatNumber(filteredSummary.value.sessions), borderClass: 'border-amber-500', timeSeriesKey: 'sessions' },
+  { key: 'screenPageViews', label: 'Page Views', value: formatNumber(filteredSummary.value.screenPageViews), borderClass: 'border-rose-500', timeSeriesKey: 'screenPageViews' },
 ])
 
 // ================= MODAL LOGIC =================
 const selectedCard = ref(null)
 const selectedCardLabel = computed(() => summaryCards.value.find(c => c.key === selectedCard.value)?.label || '')
+const modalTimeSeriesKey = computed(() => summaryCards.value.find(c => c.key === selectedCard.value)?.timeSeriesKey || '')
+
 const modalData = computed(() => {
-  if (!selectedCard.value) return []
-  const key = selectedCard.value
+  if (!selectedCard.value || !modalTimeSeriesKey.value) return []
   return filteredTimeSeries.value.map(d => ({
     date: d.date,
-    value: Number(d[key] || 0)
+    value: Number(d[modalTimeSeriesKey.value] || 0)
   }))
 })
+
 const modalTotal = computed(() => modalData.value.reduce((s, d) => s + d.value, 0).toLocaleString())
 const modalAverage = computed(() => {
   if (!modalData.value.length) return '0'
   return (modalData.value.reduce((s, d) => s + d.value, 0) / modalData.value.length).toLocaleString(undefined, { maximumFractionDigits: 0 })
 })
-const modalMax = computed(() => {
-  const max = Math.max(...modalData.value.map(d => d.value))
-  return max.toLocaleString()
-})
-const modalMin = computed(() => {
-  const min = Math.min(...modalData.value.map(d => d.value))
-  return min.toLocaleString()
-})
+const modalMax = computed(() => Math.max(...modalData.value.map(d => d.value)).toLocaleString())
+const modalMin = computed(() => Math.min(...modalData.value.map(d => d.value)).toLocaleString())
 
 function openModal(key) {
   selectedCard.value = key
@@ -409,8 +405,6 @@ function createModalChart() {
 }
 
 // ================= CHART CREATION =================
-let charts = []
-
 function destroyCharts() {
   charts.forEach(c => c.destroy())
   charts = []
@@ -420,7 +414,7 @@ function createAllCharts() {
   if (!gaData.value) return
   destroyCharts()
 
-  // 1. Visitors line
+  // 1. Visitors line (Active Users + New Users)
   if (visitorsCanvas.value && filteredTimeSeries.value.length) {
     charts.push(new Chart(visitorsCanvas.value, {
       type: 'line',
@@ -510,7 +504,7 @@ function createAllCharts() {
     }))
   }
 
-  // 8. User Types (new vs returning)
+  // 8. User Types doughnut
   if (userTypesCanvas.value && rawUserTypes.value.length) {
     charts.push(new Chart(userTypesCanvas.value, {
       type: 'doughnut',
@@ -522,7 +516,7 @@ function createAllCharts() {
     }))
   }
 
-  // 9. Page Engagement scatter (bubble)
+  // 9. Page Engagement bubble (x: avg engagement time, y: bounce rate, r: pageviews)
   if (engagementCanvas.value && rawTopPages.value.length) {
     charts.push(new Chart(engagementCanvas.value, {
       type: 'bubble',
@@ -706,11 +700,10 @@ onMounted(() => {
       if (showMap.value) initMap()
     })
   }
-  // Poll realtime every 30 seconds
-  const interval = setInterval(() => {
-    if (gaData.value) fetchRealtime()
-  }, 30000)
-  onUnmounted(() => clearInterval(interval))
+})
+
+onUnmounted(() => {
+  destroyCharts()
 })
 </script>
 

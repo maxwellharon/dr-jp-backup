@@ -35,23 +35,115 @@ export default async function handler(req, res) {
         const property = `properties/${GA_PROPERTY_ID}`;
         const dateRanges = [{ startDate: '90daysAgo', endDate: 'today' }];
 
-        // ------------------------------------------------------------
-        // 1. Summary metrics
-        // ------------------------------------------------------------
-        const [summaryResponse] = await client.runReport({
-            property,
-            dateRanges,
-            metrics: [
-                { name: 'totalUsers' },
-                { name: 'newUsers' },
-                { name: 'sessions' },
-                { name: 'screenPageViews' },
-                { name: 'averageSessionDuration' },
-                { name: 'bounceRate' },
-                { name: 'engagementRate' },
-            ],
-        });
+        // Helper to run a report and catch errors with context
+        const runReportWithContext = async (name, request) => {
+            try {
+                const [response] = await client.runReport(request);
+                return response;
+            } catch (err) {
+                console.error(`❌ Report [${name}] failed:`, err);
+                throw new Error(`[${name}] ${err.message}`);
+            }
+        };
 
+        // Define all report requests
+        const reportRequests = {
+            summary: {
+                property,
+                dateRanges,
+                metrics: [
+                    { name: 'totalUsers' },
+                    { name: 'newUsers' },
+                    { name: 'sessions' },
+                    { name: 'screenPageViews' },
+                    { name: 'averageSessionDuration' },
+                    { name: 'bounceRate' },
+                    { name: 'engagementRate' },
+                ],
+            },
+            timeSeries: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'date' }],
+                metrics: [
+                    { name: 'activeUsers' },
+                    { name: 'newUsers' },
+                    { name: 'sessions' },
+                    { name: 'screenPageViews' },
+                    { name: 'averageSessionDuration' },
+                    { name: 'bounceRate' },
+                ],
+                orderBys: [{ dimension: { dimensionName: 'date' } }],
+            },
+            topPages: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
+                metrics: [
+                    { name: 'screenPageViews' },
+                    { name: 'sessions' },
+                    { name: 'userEngagementDuration' },
+                    { name: 'bounceRate' },
+                ],
+                orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+                limit: 10,
+            },
+            topCountries: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'country' }],
+                metrics: [
+                    { name: 'sessions' },
+                    { name: 'activeUsers' },
+                    { name: 'newUsers' },
+                    { name: 'bounceRate' },
+                ],
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+                limit: 20,
+            },
+            trafficSources: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'sessionSource' }],
+                metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+                limit: 10,
+            },
+            deviceCategories: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'deviceCategory' }],
+                metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+            },
+            userTypes: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'newVsReturning' }],
+                metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+            },
+            hourly: {
+                property,
+                dateRanges,
+                dimensions: [{ name: 'hour' }],
+                metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+                orderBys: [{ dimension: { dimensionName: 'hour' } }],
+            },
+        };
+
+        // Run all reports in parallel
+        const [summaryResponse, timeSeriesResponse, pagesResponse, countriesResponse,
+            trafficResponse, deviceResponse, userTypesResponse, hourlyResponse] = await Promise.all([
+                runReportWithContext('summary', reportRequests.summary),
+                runReportWithContext('timeSeries', reportRequests.timeSeries),
+                runReportWithContext('topPages', reportRequests.topPages),
+                runReportWithContext('topCountries', reportRequests.topCountries),
+                runReportWithContext('trafficSources', reportRequests.trafficSources),
+                runReportWithContext('deviceCategories', reportRequests.deviceCategories),
+                runReportWithContext('userTypes', reportRequests.userTypes),
+                runReportWithContext('hourly', reportRequests.hourly),
+            ]);
+
+        // Parse summary
         const summary = {};
         if (summaryResponse.rows && summaryResponse.rows.length > 0) {
             summaryResponse.rows[0].metricValues.forEach((mv, i) => {
@@ -60,24 +152,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // ------------------------------------------------------------
-        // 2. Time series (daily)
-        // ------------------------------------------------------------
-        const [timeSeriesResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'date' }],
-            metrics: [
-                { name: 'activeUsers' },
-                { name: 'newUsers' },
-                { name: 'sessions' },
-                { name: 'screenPageViews' },
-                { name: 'averageSessionDuration' },
-                { name: 'bounceRate' },
-            ],
-            orderBys: [{ dimension: { dimensionName: 'date' } }],
-        });
-
+        // Parse time series
         const timeSeries = (timeSeriesResponse.rows || []).map(row => ({
             date: row.dimensionValues[0].value,
             activeUsers: Number(row.metricValues[0].value),
@@ -88,24 +163,7 @@ export default async function handler(req, res) {
             bounceRate: Number(row.metricValues[5].value),
         }));
 
-        // ------------------------------------------------------------
-        // 3. Top pages (with engagement metrics)
-        // ------------------------------------------------------------
-        const [pagesResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
-            metrics: [
-                { name: 'screenPageViews' },
-                { name: 'sessions' },
-                { name: 'userEngagementDuration' },   // total engagement time (seconds)
-                { name: 'bounceRate' },
-                { name: 'exits' },
-            ],
-            orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-            limit: 10,
-        });
-
+        // Parse top pages
         const topPages = (pagesResponse.rows || []).map(row => {
             const pageviews = Number(row.metricValues[0].value);
             const userEngagementDuration = Number(row.metricValues[2].value);
@@ -115,29 +173,12 @@ export default async function handler(req, res) {
                 pageTitle: row.dimensionValues[1].value,
                 screenPageViews: pageviews,
                 sessions: Number(row.metricValues[1].value),
-                averageEngagementTime: avgEngagementTime, // in seconds
+                averageEngagementTime: avgEngagementTime,
                 bounceRate: Number(row.metricValues[3].value),
-                exits: Number(row.metricValues[4].value),
             };
         });
 
-        // ------------------------------------------------------------
-        // 4. Top countries
-        // ------------------------------------------------------------
-        const [countriesResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'country' }],
-            metrics: [
-                { name: 'sessions' },
-                { name: 'activeUsers' },
-                { name: 'newUsers' },
-                { name: 'bounceRate' },
-            ],
-            orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-            limit: 20,
-        });
-
+        // Parse top countries
         const topCountries = (countriesResponse.rows || []).map(row => ({
             country: row.dimensionValues[0].value,
             sessions: Number(row.metricValues[0].value),
@@ -146,67 +187,28 @@ export default async function handler(req, res) {
             bounceRate: Number(row.metricValues[3].value),
         }));
 
-        // ------------------------------------------------------------
-        // 5. Traffic sources
-        // ------------------------------------------------------------
-        const [trafficResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'sessionSource' }],
-            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
-            orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-            limit: 10,
-        });
-
+        // Parse traffic sources
         const trafficSources = (trafficResponse.rows || []).map(row => ({
-            source: row.dimensionValues[0].value,
+            sessionSource: row.dimensionValues[0].value,
             sessions: Number(row.metricValues[0].value),
             activeUsers: Number(row.metricValues[1].value),
         }));
 
-        // ------------------------------------------------------------
-        // 6. Device categories
-        // ------------------------------------------------------------
-        const [deviceResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'deviceCategory' }],
-            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
-        });
-
+        // Parse device categories
         const deviceCategories = (deviceResponse.rows || []).map(row => ({
-            device: row.dimensionValues[0].value,
+            deviceCategory: row.dimensionValues[0].value,
             sessions: Number(row.metricValues[0].value),
             activeUsers: Number(row.metricValues[1].value),
         }));
 
-        // ------------------------------------------------------------
-        // 7. User types (new vs returning)
-        // ------------------------------------------------------------
-        const [userTypesResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'newVsReturning' }],
-            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
-        });
-
+        // Parse user types
         const userTypes = (userTypesResponse.rows || []).map(row => ({
             newVsReturning: row.dimensionValues[0].value,
             sessions: Number(row.metricValues[0].value),
             activeUsers: Number(row.metricValues[1].value),
         }));
 
-        // ------------------------------------------------------------
-        // 8. Hourly engagement
-        // ------------------------------------------------------------
-        const [hourlyResponse] = await client.runReport({
-            property,
-            dateRanges,
-            dimensions: [{ name: 'hour' }],
-            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
-            orderBys: [{ dimension: { dimensionName: 'hour' } }],
-        });
-
+        // Parse hourly
         const hourly = (hourlyResponse.rows || []).map(row => ({
             hour: row.dimensionValues[0].value,
             sessions: Number(row.metricValues[0].value),
@@ -226,7 +228,7 @@ export default async function handler(req, res) {
             hourly,
         });
     } catch (error) {
-        console.error('❌ GA API error:', error);
+        console.error('❌ GA API error:', error.message);
         console.error('Error details:', JSON.stringify(error.details, null, 2));
         res.status(500).json({
             error: error.message,
