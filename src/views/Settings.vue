@@ -87,7 +87,7 @@
                 </h3>
                 <label class="flex items-center gap-2 text-sm bg-white p-3 rounded-xl border border-slate-200">
                   <input type="checkbox" v-model="form.includePatientData" class="rounded text-indigo-600 focus:ring-indigo-500" />
-                  Include detailed patient data in report
+                  Include detailed patient data table in report
                 </label>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -389,7 +389,7 @@ async function generateChartImage(config, width = 600, height = 300) {
   return image
 }
 
-// Generate patient charts (only if includePatientData)
+// Generate patient charts (always called)
 async function generatePatientCharts(data) {
   const charts = []
   if (!data.length) return charts
@@ -596,13 +596,16 @@ const sendNow = async () => {
       )
     }
 
+    // Always generate patient charts
+    reportData.images.push(...(await generatePatientCharts(rawPatients)))
+
+    // Only include detailed patient table if checkbox is selected
     if (form.includePatientData) {
       reportData.tables.push({
         title: 'Patient Records',
         headers: ['Name', 'Procedure', 'Age', 'Price'],
         rows: rawPatients.slice(0, 10).map(p => [p.name, p.selectedProcedure, p.age, p.calculatedPrice]),
       })
-      reportData.images.push(...(await generatePatientCharts(rawPatients)))
     }
 
     reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
