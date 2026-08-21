@@ -18,8 +18,6 @@ export default async function handler(req, res) {
 
     let serviceAccount;
     try {
-        // The whole service account JSON is stored as one base64 string, so
-        // there's no PEM newline-escaping to get wrong — decode, then parse.
         const decoded = Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
         serviceAccount = JSON.parse(decoded);
     } catch (err) {
@@ -35,9 +33,11 @@ export default async function handler(req, res) {
         });
 
         const property = `properties/${GA_PROPERTY_ID}`;
-        const dateRanges = [{ startDate: '30daysAgo', endDate: 'today' }];
+        const dateRanges = [{ startDate: '90daysAgo', endDate: 'today' }];
 
-        // Summary metrics
+        // ------------------------------------------------------------
+        // 1. Summary metrics
+        // ------------------------------------------------------------
         const [summaryResponse] = await client.runReport({
             property,
             dateRanges,
@@ -60,7 +60,9 @@ export default async function handler(req, res) {
             });
         }
 
-        // Time series
+        // ------------------------------------------------------------
+        // 2. Time series (daily)
+        // ------------------------------------------------------------
         const [timeSeriesResponse] = await client.runReport({
             property,
             dateRanges,
@@ -70,70 +72,156 @@ export default async function handler(req, res) {
                 { name: 'newUsers' },
                 { name: 'sessions' },
                 { name: 'screenPageViews' },
+                { name: 'averageSessionDuration' },
+                { name: 'bounceRate' },
             ],
             orderBys: [{ dimension: { dimensionName: 'date' } }],
         });
 
         const timeSeries = (timeSeriesResponse.rows || []).map(row => ({
             date: row.dimensionValues[0].value,
-            activeUsers: row.metricValues[0].value,
-            newUsers: row.metricValues[1].value,
-            sessions: row.metricValues[2].value,
-            pageviews: row.metricValues[3].value,
+            activeUsers: Number(row.metricValues[0].value),
+            newUsers: Number(row.metricValues[1].value),
+            sessions: Number(row.metricValues[2].value),
+            screenPageViews: Number(row.metricValues[3].value),
+            averageSessionDuration: Number(row.metricValues[4].value),
+            bounceRate: Number(row.metricValues[5].value),
         }));
 
-        // Top pages
+        // ------------------------------------------------------------
+        // 3. Top pages (with engagement metrics)
+        // ------------------------------------------------------------
         const [pagesResponse] = await client.runReport({
             property,
             dateRanges,
-            dimensions: [{ name: 'pagePath' }],
-            metrics: [{ name: 'screenPageViews' }],
-            orderBys: [{ metric: { metricName: 'screenPageViews', desc: true } }],
+            dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
+            metrics: [
+                { name: 'screenPageViews' },
+                { name: 'sessions' },
+                { name: 'averageEngagementTime' },
+                { name: 'bounceRate' },
+                { name: 'exits' },
+            ],
+            orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
             limit: 10,
         });
+
         const topPages = (pagesResponse.rows || []).map(row => ({
             pagePath: row.dimensionValues[0].value,
-            pageviews: row.metricValues[0].value,
+            pageTitle: row.dimensionValues[1].value,
+            screenPageViews: Number(row.metricValues[0].value),
+            sessions: Number(row.metricValues[1].value),
+            averageEngagementTime: Number(row.metricValues[2].value),
+            bounceRate: Number(row.metricValues[3].value),
+            exits: Number(row.metricValues[4].value),
         }));
 
-        // Top countries
+        // ------------------------------------------------------------
+        // 4. Top countries
+        // ------------------------------------------------------------
         const [countriesResponse] = await client.runReport({
             property,
             dateRanges,
             dimensions: [{ name: 'country' }],
-            metrics: [{ name: 'sessions' }],
-            orderBys: [{ metric: { metricName: 'sessions', desc: true } }],
-            limit: 10,
+            metrics: [
+                { name: 'sessions' },
+                { name: 'activeUsers' },
+                { name: 'newUsers' },
+                { name: 'bounceRate' },
+            ],
+            orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+            limit: 20,
         });
+
         const topCountries = (countriesResponse.rows || []).map(row => ({
             country: row.dimensionValues[0].value,
-            sessions: row.metricValues[0].value,
+            sessions: Number(row.metricValues[0].value),
+            activeUsers: Number(row.metricValues[1].value),
+            newUsers: Number(row.metricValues[2].value),
+            bounceRate: Number(row.metricValues[3].value),
         }));
 
-        // Traffic sources
+        // ------------------------------------------------------------
+        // 5. Traffic sources
+        // ------------------------------------------------------------
         const [trafficResponse] = await client.runReport({
             property,
             dateRanges,
             dimensions: [{ name: 'sessionSource' }],
-            metrics: [{ name: 'sessions' }],
-            orderBys: [{ metric: { metricName: 'sessions', desc: true } }],
+            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+            orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
             limit: 10,
         });
+
         const trafficSources = (trafficResponse.rows || []).map(row => ({
             source: row.dimensionValues[0].value,
-            sessions: row.metricValues[0].value,
+            sessions: Number(row.metricValues[0].value),
+            activeUsers: Number(row.metricValues[1].value),
         }));
 
-        // Device categories
+        // ------------------------------------------------------------
+        // 6. Device categories
+        // ------------------------------------------------------------
         const [deviceResponse] = await client.runReport({
             property,
             dateRanges,
             dimensions: [{ name: 'deviceCategory' }],
-            metrics: [{ name: 'sessions' }],
+            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
         });
+
         const deviceCategories = (deviceResponse.rows || []).map(row => ({
             device: row.dimensionValues[0].value,
-            sessions: row.metricValues[0].value,
+            sessions: Number(row.metricValues[0].value),
+            activeUsers: Number(row.metricValues[1].value),
+        }));
+
+        // ------------------------------------------------------------
+        // 7. User types (new vs returning)
+        // ------------------------------------------------------------
+        const [userTypesResponse] = await client.runReport({
+            property,
+            dateRanges,
+            dimensions: [{ name: 'newVsReturning' }],
+            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+        });
+
+        const userTypes = (userTypesResponse.rows || []).map(row => ({
+            newVsReturning: row.dimensionValues[0].value,
+            sessions: Number(row.metricValues[0].value),
+            activeUsers: Number(row.metricValues[1].value),
+        }));
+
+        // ------------------------------------------------------------
+        // 8. Hourly engagement
+        // ------------------------------------------------------------
+        const [hourlyResponse] = await client.runReport({
+            property,
+            dateRanges,
+            dimensions: [{ name: 'hour' }],
+            metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+            orderBys: [{ dimension: { dimensionName: 'hour' } }],
+        });
+
+        const hourly = (hourlyResponse.rows || []).map(row => ({
+            hour: row.dimensionValues[0].value,
+            sessions: Number(row.metricValues[0].value),
+            activeUsers: Number(row.metricValues[1].value),
+        }));
+
+        // ------------------------------------------------------------
+        // 9. Retention cohort (last 7 days)
+        // ------------------------------------------------------------
+        const [retentionResponse] = await client.runReport({
+            property,
+            dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+            dimensions: [{ name: 'cohort' }],
+            metrics: [{ name: 'cohortActiveUsers' }, { name: 'cohortTotalUsers' }],
+        });
+
+        const retention = (retentionResponse.rows || []).map(row => ({
+            cohort: row.dimensionValues[0].value,
+            cohortActiveUsers: Number(row.metricValues[0].value),
+            cohortTotalUsers: Number(row.metricValues[1].value),
         }));
 
         console.log('✅ GA data fetched successfully');
@@ -145,6 +233,9 @@ export default async function handler(req, res) {
             topCountries,
             trafficSources,
             deviceCategories,
+            userTypes,
+            hourly,
+            retention,
         });
     } catch (error) {
         console.error('❌ GA API error:', error.message);

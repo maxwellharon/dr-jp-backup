@@ -1,9 +1,11 @@
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
 export function useGoogleAnalytics() {
     const gaData = ref(null)
     const loading = ref(false)
     const error = ref(null)
+    const realtimeUsers = ref(0)
+    let realtimeInterval = null
 
     const fetchData = async () => {
         loading.value = true
@@ -24,9 +26,32 @@ export function useGoogleAnalytics() {
         }
     }
 
+    const fetchRealtime = async () => {
+        try {
+            const res = await fetch('/api/ga-realtime')
+            if (res.ok) {
+                const data = await res.json()
+                realtimeUsers.value = Number(data.activeUsers) || 0
+            }
+        } catch (e) {
+            console.error('Realtime fetch error:', e)
+        }
+    }
+
+    const startRealtimePolling = () => {
+        if (realtimeInterval) clearInterval(realtimeInterval)
+        fetchRealtime()
+        realtimeInterval = setInterval(fetchRealtime, 30000) // every 30 seconds
+    }
+
     onMounted(() => {
         if (!gaData.value) fetchData()
+        startRealtimePolling()
     })
 
-    return { gaData, loading, error, refresh: fetchData }
+    onUnmounted(() => {
+        if (realtimeInterval) clearInterval(realtimeInterval)
+    })
+
+    return { gaData, loading, error, realtimeUsers, refresh: fetchData, fetchRealtime }
 }
