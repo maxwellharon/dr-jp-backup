@@ -1,8 +1,7 @@
 <template>
   <div class="space-y-6">
-    <!-- Filter Bar -->
+    <!-- ================= FILTER BAR ================= -->
     <div v-if="gaData" class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-end">
-      <!-- Date Range -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">From</label>
         <input type="date" v-model="dateFrom" :min="minDate" :max="dateTo" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" />
@@ -12,7 +11,6 @@
         <input type="date" v-model="dateTo" :min="dateFrom" :max="maxDate" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" />
       </div>
 
-      <!-- Source Filter -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">Source</label>
         <select v-model="sourceFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
@@ -21,7 +19,6 @@
         </select>
       </div>
 
-      <!-- Country Filter -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">Country</label>
         <select v-model="countryFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
@@ -30,7 +27,6 @@
         </select>
       </div>
 
-      <!-- Device Filter -->
       <div class="flex flex-col">
         <label class="text-xs font-semibold text-slate-500 mb-1">Device</label>
         <select v-model="deviceFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500/20 outline-none">
@@ -39,7 +35,6 @@
         </select>
       </div>
 
-      <!-- Customize Button -->
       <button @click="showCustomize = !showCustomize" class="ml-auto bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl font-semibold text-sm hover:bg-indigo-100 transition flex items-center gap-2">
         <i class="fas fa-sliders-h"></i> Customize
       </button>
@@ -200,13 +195,13 @@
         </table>
       </div>
 
-      <!-- AI Insights -->
+      <!-- AI Insights (Expanded) -->
       <div v-if="showAiInsights" class="bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white border border-purple-200 rounded-3xl p-6 md:p-8 shadow-sm">
         <div class="flex items-center gap-3 mb-6">
           <span class="h-10 w-10 bg-purple-600 text-white rounded-xl flex items-center justify-center text-sm shadow-md shadow-purple-500/20"><i class="fas fa-brain animate-pulse"></i></span>
           <div>
             <h4 class="font-extrabold text-slate-900 text-lg tracking-tight">AI Site Analytics Insights</h4>
-            <p class="text-xs text-purple-700 font-medium">Automated analysis of your web traffic and engagement patterns.</p>
+            <p class="text-xs text-purple-700 font-medium">Comprehensive analysis of your web traffic and engagement patterns.</p>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -516,7 +511,7 @@ function createAllCharts() {
     }))
   }
 
-  // 9. Page Engagement bubble (x: avg engagement time, y: bounce rate, r: pageviews)
+  // 9. Page Engagement bubble
   if (engagementCanvas.value && rawTopPages.value.length) {
     charts.push(new Chart(engagementCanvas.value, {
       type: 'bubble',
@@ -608,72 +603,211 @@ function updateMapMarkers() {
   })
 }
 
-// ================= AI INSIGHTS =================
+// ================= AI INSIGHTS (EXPANDED) =================
 const aiInsights = computed(() => {
   if (!gaData.value) return []
+  const insights = []
   const s = filteredSummary.value
-  const topCountry = filteredCountries.value[0]?.country || 'Unknown'
-  const topPage = rawTopPages.value[0]?.pagePath || 'Home'
-  const topSource = rawTrafficSources.value[0]?.sessionSource || 'Direct'
-  const mobile = rawDeviceCategories.value.find(d => d.deviceCategory === 'mobile')?.sessions || 0
-  const totalSessions = Number(s.sessions) || 1
-  const mobilePercent = Math.round((mobile / totalSessions) * 100)
-  const bounce = Number(s.bounceRate) || 0
-  const returning = rawUserTypes.value.find(u => u.newVsReturning === 'returning')?.sessions || 0
-  const returningPercent = Math.round((returning / totalSessions) * 100)
-  const topPageTime = rawTopPages.value[0]?.averageEngagementTime || 0
-  const worstPage = rawTopPages.value.slice().sort((a,b) => b.bounceRate - a.bounceRate)[0]
 
-  return [
-    {
+  // Helper functions
+  const pct = (part, total) => total > 0 ? Math.round((part / total) * 100) : 0
+
+  // 1. Geographic Focus
+  const topCountry = filteredCountries.value[0]
+  if (topCountry) {
+    insights.push({
       title: 'Geographic Focus',
-      message: `The majority of your traffic comes from ${topCountry}. Consider localized content and targeted ads for this region.`,
+      message: `The majority of your traffic comes from ${topCountry.country} (${pct(topCountry.sessions, s.sessions)}% of sessions). Consider localized content and targeted ads for this region.`,
       icon: 'fas fa-globe-africa',
       iconBg: 'bg-indigo-50 text-indigo-600'
-    },
-    {
+    })
+  }
+
+  // 2. Top Performing Page
+  const topPage = rawTopPages.value[0]
+  if (topPage) {
+    insights.push({
       title: 'Top Performing Page',
-      message: `"${topPage}" is your most visited page with an average engagement of ${formatDuration(topPageTime)}. Ensure it has clear CTAs.`,
+      message: `"${topPage.pagePath}" is your most visited page (${topPage.screenPageViews} views) with an average engagement of ${formatDuration(topPage.averageEngagementTime)}. Ensure it has clear CTAs.`,
       icon: 'fas fa-file-alt',
       iconBg: 'bg-emerald-50 text-emerald-600'
-    },
-    {
+    })
+  }
+
+  // 3. Traffic Acquisition
+  const topSource = rawTrafficSources.value[0]
+  if (topSource) {
+    insights.push({
       title: 'Traffic Acquisition',
-      message: `Most sessions originate from ${topSource}. Invest more in this channel or diversify to reduce dependency.`,
+      message: `Most sessions originate from ${topSource.sessionSource} (${topSource.sessions} sessions). Invest more in this channel or diversify to reduce dependency.`,
       icon: 'fas fa-chart-line',
       iconBg: 'bg-amber-50 text-amber-600'
-    },
-    {
-      title: 'Mobile Experience',
-      message: `${mobilePercent}% of sessions come from mobile devices. Optimize mobile UX to reduce bounce and improve engagement.`,
-      icon: 'fas fa-mobile-alt',
-      iconBg: 'bg-rose-50 text-rose-600'
-    },
-    {
-      title: 'Engagement Health',
-      message: `Bounce rate is ${bounce}%. ${bounce > 50 ? 'Consider improving content relevance or page speed.' : 'You are doing well, keep monitoring.'}`,
-      icon: 'fas fa-heartbeat',
-      iconBg: 'bg-purple-50 text-purple-600'
-    },
-    {
-      title: 'Audience Retention',
-      message: `${returningPercent}% of your sessions are from returning users. ${returningPercent < 30 ? 'Focus on retention strategies like email marketing.' : 'Your audience loyalty is strong.'}`,
-      icon: 'fas fa-users',
-      iconBg: 'bg-blue-50 text-blue-600'
-    },
-    {
+    })
+  }
+
+  // 4. Mobile Experience
+  const mobile = rawDeviceCategories.value.find(d => d.deviceCategory === 'mobile')?.sessions || 0
+  const mobilePercent = pct(mobile, s.sessions)
+  insights.push({
+    title: 'Mobile Experience',
+    message: `${mobilePercent}% of sessions come from mobile devices. Optimize mobile UX to reduce bounce and improve engagement.`,
+    icon: 'fas fa-mobile-alt',
+    iconBg: 'bg-rose-50 text-rose-600'
+  })
+
+  // 5. Engagement Health
+  const bounce = Number(s.bounceRate) || 0
+  insights.push({
+    title: 'Engagement Health',
+    message: `Bounce rate is ${bounce}%. ${bounce > 50 ? 'Consider improving content relevance or page speed.' : 'You are doing well, keep monitoring.'}`,
+    icon: 'fas fa-heartbeat',
+    iconBg: 'bg-purple-50 text-purple-600'
+  })
+
+  // 6. Audience Retention
+  const returning = rawUserTypes.value.find(u => u.newVsReturning === 'returning')?.sessions || 0
+  const returningPercent = pct(returning, s.sessions)
+  insights.push({
+    title: 'Audience Retention',
+    message: `${returningPercent}% of your sessions are from returning users. ${returningPercent < 30 ? 'Focus on retention strategies like email marketing.' : 'Your audience loyalty is strong.'}`,
+    icon: 'fas fa-users',
+    iconBg: 'bg-blue-50 text-blue-600'
+  })
+
+  // 7. Problem Page (highest bounce)
+  const worstPage = rawTopPages.value.slice().sort((a,b) => Number(b.bounceRate) - Number(a.bounceRate))[0]
+  if (worstPage) {
+    insights.push({
       title: 'Problem Page',
-      message: `"${worstPage?.pagePath}" has the highest bounce rate (${worstPage?.bounceRate}%). Consider redesigning this page or improving its content.`,
+      message: `"${worstPage.pagePath}" has the highest bounce rate (${worstPage.bounceRate}%). Consider redesigning this page or improving its content.`,
       icon: 'fas fa-exclamation-circle',
       iconBg: 'bg-red-50 text-red-600'
-    },
-    {
-      title: 'Content Strategy',
-      message: `Your average session duration is ${formatDuration(s.averageSessionDuration)}. Longer sessions indicate strong content engagement.`,
-      icon: 'fas fa-clock',
-      iconBg: 'bg-teal-50 text-teal-600'
+    })
+  }
+
+  // 8. Content Strategy
+  insights.push({
+    title: 'Content Strategy',
+    message: `Your average session duration is ${formatDuration(s.averageSessionDuration)}. Longer sessions indicate strong content engagement.`,
+    icon: 'fas fa-clock',
+    iconBg: 'bg-teal-50 text-teal-600'
+  })
+
+  // 9. Traffic Trend (comparing first half vs second half of filtered time series)
+  if (filteredTimeSeries.value.length >= 4) {
+    const half = Math.floor(filteredTimeSeries.value.length / 2)
+    const firstHalfAvg = filteredTimeSeries.value.slice(0, half).reduce((sum, d) => sum + Number(d.activeUsers), 0) / half
+    const secondHalfAvg = filteredTimeSeries.value.slice(half).reduce((sum, d) => sum + Number(d.activeUsers), 0) / (filteredTimeSeries.value.length - half)
+    const change = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100
+    if (change > 10) {
+      insights.push({
+        title: 'Traffic Growth',
+        message: `Active users increased by ${Math.round(change)}% in the second half of the period. Keep doing what's working!`,
+        icon: 'fas fa-arrow-up',
+        iconBg: 'bg-green-50 text-green-600'
+      })
+    } else if (change < -10) {
+      insights.push({
+        title: 'Traffic Decline',
+        message: `Active users decreased by ${Math.abs(Math.round(change))}% in the second half. Investigate possible causes.`,
+        icon: 'fas fa-arrow-down',
+        iconBg: 'bg-yellow-50 text-yellow-600'
+      })
     }
-  ]
+  }
+
+  // 10. Weekly Pattern (best vs worst day of week)
+  if (filteredTimeSeries.value.length >= 7) {
+    const dayMap = { 0: 'Sunday', 1: 'Monday', 2: 'Tuesday', 3: 'Wednesday', 4: 'Thursday', 5: 'Friday', 6: 'Saturday' }
+    const dayTotals = {}
+    filteredTimeSeries.value.forEach(d => {
+      const day = new Date(d.date.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')).getDay()
+      dayTotals[day] = (dayTotals[day] || 0) + Number(d.activeUsers)
+    })
+    const bestDay = Object.entries(dayTotals).sort((a,b) => b[1] - a[1])[0]
+    const worstDay = Object.entries(dayTotals).sort((a,b) => a[1] - b[1])[0]
+    insights.push({
+      title: 'Weekly Pattern',
+      message: `${dayMap[bestDay[0]]} is your highest-traffic day (avg ${Math.round(bestDay[1] / (filteredTimeSeries.value.length / 7))} users), while ${dayMap[worstDay[0]]} sees the least. Schedule content accordingly.`,
+      icon: 'fas fa-calendar-week',
+      iconBg: 'bg-indigo-50 text-indigo-600'
+    })
+  }
+
+  // 11. Hourly Peak
+  if (rawHourly.value.length) {
+    const peak = rawHourly.value.slice().sort((a,b) => b.sessions - a.sessions)[0]
+    insights.push({
+      title: 'Peak Hours',
+      message: `Your site sees the most sessions at ${peak.hour}:00 (${peak.sessions} sessions). Schedule content and maintenance around this.`,
+      icon: 'fas fa-hourglass-half',
+      iconBg: 'bg-cyan-50 text-cyan-600'
+    })
+  }
+
+  // 12. Underperforming Country (high bounce)
+  const highBounceCountry = rawTopCountries.value.slice().sort((a,b) => Number(b.bounceRate) - Number(a.bounceRate))[0]
+  if (highBounceCountry && highBounceCountry.bounceRate > 60) {
+    insights.push({
+      title: 'Underperforming Region',
+      message: `${highBounceCountry.country} has a bounce rate of ${highBounceCountry.bounceRate}%. Consider localizing content or improving page speed for this audience.`,
+      icon: 'fas fa-map-marker-alt',
+      iconBg: 'bg-orange-50 text-orange-600'
+    })
+  }
+
+  // 13. Hidden Gem Page (low views but high engagement)
+  const hiddenGem = rawTopPages.value.filter(p => p.screenPageViews < 100 && p.averageEngagementTime > 60).sort((a,b) => b.averageEngagementTime - a.averageEngagementTime)[0]
+  if (hiddenGem) {
+    insights.push({
+      title: 'Hidden Gem',
+      message: `"${hiddenGem.pagePath}" has low views (${hiddenGem.screenPageViews}) but high engagement (${formatDuration(hiddenGem.averageEngagementTime)}). Consider promoting it more.`,
+      icon: 'fas fa-gem',
+      iconBg: 'bg-pink-50 text-pink-600'
+    })
+  }
+
+  // 14. New User Growth
+  if (filteredTimeSeries.value.length >= 2) {
+    const firstNew = filteredTimeSeries.value[0].newUsers
+    const lastNew = filteredTimeSeries.value[filteredTimeSeries.value.length - 1].newUsers
+    const growth = ((lastNew - firstNew) / firstNew) * 100
+    if (growth > 20) {
+      insights.push({
+        title: 'New User Growth',
+        message: `New users grew by ${Math.round(growth)}% during the period. Your acquisition efforts are paying off!`,
+        icon: 'fas fa-user-plus',
+        iconBg: 'bg-green-50 text-green-600'
+      })
+    }
+  }
+
+  // 15. Session Quality (engagement rate)
+  const engagementRate = Number(s.engagementRate) || 0
+  insights.push({
+    title: 'Session Quality',
+    message: `Your overall engagement rate is ${engagementRate}%. ${engagementRate > 60 ? 'Excellent — users are actively interacting with your site.' : 'Consider improving content or navigation to increase engagement.'}`,
+    icon: 'fas fa-thumbs-up',
+    iconBg: 'bg-blue-50 text-blue-600'
+  })
+
+  // 16. Anomaly Detection (spike or drop in sessions)
+  if (filteredTimeSeries.value.length >= 10) {
+    const sessions = filteredTimeSeries.value.map(d => Number(d.sessions))
+    const mean = sessions.reduce((a,b) => a+b, 0) / sessions.length
+    const stdDev = Math.sqrt(sessions.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / sessions.length)
+    const maxVal = Math.max(...sessions)
+    if (stdDev > 0 && (maxVal - mean) / stdDev > 3) {
+      insights.push({
+        title: 'Traffic Anomaly',
+        message: `A significant spike in sessions was detected (${maxVal} sessions vs average ${Math.round(mean)}). Investigate possible cause (campaign, viral content).`,
+        icon: 'fas fa-exclamation-triangle',
+        iconBg: 'bg-yellow-50 text-yellow-600'
+      })
+    }
+  }
+
+  return insights
 })
 
 // ================= WATCHERS & LIFECYCLE =================
