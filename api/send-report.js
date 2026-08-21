@@ -19,8 +19,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No report data provided' });
     }
 
+    // Extract date range from filters if present
+    const periodText = filters?.dateFrom && filters?.dateTo
+        ? `For the period ${filters.dateFrom} to ${filters.dateTo}`
+        : `For the period ${new Date().toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi' })}`;
+
+    const subjectLine = filters?.dateFrom && filters?.dateTo
+        ? `${reportType} - For the period ${filters.dateFrom} to ${filters.dateTo}`
+        : `${reportType} - For the period ${new Date().toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi' })}`;
+
     try {
-        // Generate PDF
         const doc = new jsPDF('p', 'mm', 'a4');
         const now = new Date().toLocaleString('en-KE', {
             dateStyle: 'full',
@@ -39,6 +47,7 @@ export default async function handler(req, res) {
         doc.setFont('helvetica', 'normal');
         doc.text(`Generated: ${now}`, 14, 19);
         doc.text(`Report Type: ${reportType}`, 14, 26);
+        doc.text(`Period: ${periodText}`, 14, 32);
         y = 40;
 
         doc.setTextColor(30, 41, 59);
@@ -77,7 +86,6 @@ export default async function handler(req, res) {
 
         const pdfBuffer = doc.output('arraybuffer');
 
-        // SMTP configuration
         const smtpConfig = {
             host: process.env.SMTP_HOST || 'mail.drjpogalo.co.ke',
             port: Number(process.env.SMTP_PORT) || 465,
@@ -88,19 +96,13 @@ export default async function handler(req, res) {
             },
         };
 
-        console.log('SMTP config:', {
-            host: smtpConfig.host,
-            port: smtpConfig.port,
-            user: smtpConfig.auth.user,
-        });
-
         const transporter = nodemailer.createTransport(smtpConfig);
 
         const info = await transporter.sendMail({
             from: `"Dr. JP Reports" <${smtpConfig.auth.user}>`,
             to: recipients.join(', '),
-            subject: `${reportType} - ${new Date().toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi' })}`,
-            text: 'Please find attached the requested report.',
+            subject: subjectLine,
+            text: `Please find attached the requested report. ${periodText}`,
             attachments: [
                 {
                     filename: `report_${Date.now()}.pdf`,

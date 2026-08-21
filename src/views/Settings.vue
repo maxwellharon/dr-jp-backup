@@ -20,6 +20,17 @@
         </button>
       </div>
 
+      <!-- Active Automation Status -->
+      <div v-if="settings?.activatedAt" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3">
+        <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
+        <div>
+          <p class="font-semibold text-emerald-800 text-sm">Automation Active</p>
+          <p class="text-xs text-emerald-600">
+            Running since {{ formatDate(settings.activatedAt?.toDate()) }} · Frequency: {{ settings.frequency }} at {{ settings.time }}
+          </p>
+        </div>
+      </div>
+
       <!-- Wizard Container -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
@@ -66,41 +77,100 @@
 
             <!-- Step 1: Filters -->
             <div v-else-if="currentStep === 1" key="step1" class="space-y-6">
-              <h2 class="text-xl font-bold text-slate-900">🔍 Filters</h2>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-sm font-semibold text-slate-600 mb-1">Date Range (optional)</label>
-                  <div class="flex gap-2">
-                    <input type="date" v-model="form.dateFrom" class="w-full border rounded-lg p-2 text-sm" />
-                    <input type="date" v-model="form.dateTo" class="w-full border rounded-lg p-2 text-sm" />
+              <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold text-slate-900">🔍 Filters</h2>
+                <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
+              </div>
+
+              <!-- Patient Data Filters (only if patient or both) -->
+              <div v-if="form.dataType === 'patient' || form.dataType === 'both'" class="space-y-4 border-l-4 border-indigo-200 pl-4">
+                <h3 class="font-semibold text-slate-700 flex items-center gap-2">
+                  <i class="fas fa-user-injured text-indigo-500"></i> Patient Data Filters
+                </h3>
+                <label class="flex items-center gap-2 text-sm bg-white p-3 rounded-xl border border-slate-200">
+                  <input type="checkbox" v-model="form.includePatientData" class="rounded text-indigo-600 focus:ring-indigo-500" />
+                  Include detailed patient data in report
+                </label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date From</label>
+                    <input type="date" v-model="form.patientDateFrom" class="w-full border rounded-lg p-2 text-sm" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date To</label>
+                    <input type="date" v-model="form.patientDateTo" class="w-full border rounded-lg p-2 text-sm" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Procedure</label>
+                    <select v-model="form.procedureFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
+                      <option value="all">All Procedures</option>
+                      <option v-for="proc in procedures" :key="proc" :value="proc">{{ proc }}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Country</label>
+                    <input type="text" v-model="form.countryFilter" placeholder="e.g., Kenya" class="w-full border rounded-lg p-2 text-sm" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Status</label>
+                    <select v-model="form.statusFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
+                      <option value="all">All Statuses</option>
+                      <option value="active">Active</option>
+                      <option value="done">Done</option>
+                    </select>
                   </div>
                 </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-600 mb-1">Procedure Filter</label>
-                  <select v-model="form.procedureFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                    <option value="all">All Procedures</option>
-                    <option v-for="proc in procedures" :key="proc" :value="proc">{{ proc }}</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-600 mb-1">Country Filter</label>
-                  <input type="text" v-model="form.countryFilter" placeholder="e.g., Kenya" class="w-full border rounded-lg p-2 text-sm" />
-                </div>
-                <div>
-                  <label class="block text-sm font-semibold text-slate-600 mb-1">Status Filter</label>
-                  <select v-model="form.statusFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                    <option value="all">All Statuses</option>
-                    <option value="active">Active</option>
-                    <option value="done">Done</option>
-                  </select>
+              </div>
+
+              <!-- Web Data Filters (only if web or both) -->
+              <div v-if="form.dataType === 'web' || form.dataType === 'both'" class="space-y-4 border-l-4 border-emerald-200 pl-4">
+                <h3 class="font-semibold text-slate-700 flex items-center gap-2">
+                  <i class="fas fa-globe text-emerald-500"></i> Web Data Filters
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date From</label>
+                    <input type="date" v-model="form.webDateFrom" class="w-full border rounded-lg p-2 text-sm" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date To</label>
+                    <input type="date" v-model="form.webDateTo" class="w-full border rounded-lg p-2 text-sm" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Source</label>
+                    <select v-model="form.sourceFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
+                      <option value="all">All Sources</option>
+                      <option v-for="src in trafficSources" :key="src" :value="src">{{ src }}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Country</label>
+                    <select v-model="form.webCountryFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
+                      <option value="all">All Countries</option>
+                      <option v-for="c in countries" :key="c" :value="c">{{ c }}</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-semibold text-slate-600 mb-1">Device</label>
+                    <select v-model="form.deviceFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
+                      <option value="all">All Devices</option>
+                      <option v-for="d in devices" :key="d" :value="d">{{ d }}</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">Next <i class="fas fa-arrow-right ml-1"></i></button>
+
+              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                Next <i class="fas fa-arrow-right ml-1"></i>
+              </button>
             </div>
 
             <!-- Step 2: Recipients -->
             <div v-else-if="currentStep === 2" key="step2" class="space-y-6">
-              <h2 class="text-xl font-bold text-slate-900">📧 Recipient List</h2>
+              <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold text-slate-900">📧 Recipient List</h2>
+                <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
+              </div>
               <div class="flex gap-2">
                 <input type="email" v-model="newEmail" placeholder="Enter email address" class="flex-1 border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" @keyup.enter="addEmail" />
                 <button @click="addEmail" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">Add</button>
@@ -112,12 +182,20 @@
                 </div>
                 <p v-if="form.recipients.length === 0" class="text-sm text-slate-400 text-center py-4">No recipients added yet.</p>
               </div>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">Next <i class="fas fa-arrow-right ml-1"></i></button>
+              <button @click="saveMailingList" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-semibold transition">
+                <i class="fas fa-save mr-1"></i> Save Mailing List
+              </button>
+              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                Next <i class="fas fa-arrow-right ml-1"></i>
+              </button>
             </div>
 
             <!-- Step 3: Frequency -->
             <div v-else-if="currentStep === 3" key="step3" class="space-y-6">
-              <h2 class="text-xl font-bold text-slate-900">⏰ Schedule</h2>
+              <div class="flex items-center justify-between">
+                <h2 class="text-xl font-bold text-slate-900">⏰ Schedule</h2>
+                <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
+              </div>
               <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <button @click="form.frequency = 'daily'" class="p-4 rounded-xl border-2 text-center transition-all" :class="form.frequency === 'daily' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
                   <i class="fas fa-sun text-2xl text-amber-500"></i>
@@ -136,7 +214,9 @@
                 <label class="block text-sm font-semibold text-slate-600 mb-1">Time of Day</label>
                 <input type="time" v-model="form.time" class="border rounded-lg p-2 text-sm" />
               </div>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">Next <i class="fas fa-arrow-right ml-1"></i></button>
+              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                Next <i class="fas fa-arrow-right ml-1"></i>
+              </button>
             </div>
 
             <!-- Step 4: Confirmation -->
@@ -147,6 +227,7 @@
               <button @click="saveSettingsAndFinish" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition transform hover:scale-105">
                 <i class="fas fa-check-circle mr-2"></i> Activate Automation
               </button>
+              <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
             </div>
           </Transition>
         </div>
@@ -190,15 +271,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import NavBar from '../components/NavBar.vue'
 import { useAutomationSettings } from '../composables/useAutomationSettings'
 import { useWixData } from '../composables/useWixData'
-import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'  // NEW
+import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
 
 const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail } = useAutomationSettings()
 const { procedures, patients } = useWixData()
-const { gaData } = useGoogleAnalytics()  // NEW
+const { gaData } = useGoogleAnalytics()
 
 const currentStep = ref(0)
 const newEmail = ref('')
@@ -213,11 +294,17 @@ const steps = [
 
 const defaultForm = {
   dataType: 'both',
-  dateFrom: '',
-  dateTo: '',
+  includePatientData: false,
+  patientDateFrom: '',
+  patientDateTo: '',
   procedureFilter: 'all',
   countryFilter: '',
   statusFilter: 'all',
+  webDateFrom: '',
+  webDateTo: '',
+  sourceFilter: 'all',
+  webCountryFilter: 'all',
+  deviceFilter: 'all',
   recipients: [],
   frequency: 'weekly',
   time: '09:00',
@@ -225,12 +312,21 @@ const defaultForm = {
 
 const form = reactive({ ...defaultForm })
 
+// Computed lists for web filters (from GA data)
+const trafficSources = computed(() => (gaData.value?.trafficSources || []).map(s => s.source))
+const countries = computed(() => (gaData.value?.topCountries || []).map(c => c.country))
+const devices = computed(() => (gaData.value?.deviceCategories || []).map(d => d.device))
+
+// Watch settings from Firestore and merge
+watch(settings, (newSettings) => {
+  if (newSettings) {
+    Object.assign(form, defaultForm, newSettings)
+  }
+}, { immediate: true })
+
 onMounted(() => {
   loadSettings()
   loadEmailLogs()
-  if (settings.value) {
-    Object.assign(form, defaultForm, settings.value)
-  }
 })
 
 const addEmail = () => {
@@ -245,8 +341,16 @@ const removeEmail = (idx) => {
   form.recipients.splice(idx, 1)
 }
 
-const saveSettingsAndFinish = async () => {
+const saveMailingList = async () => {
   await saveSettings({ ...form })
+  alert('Mailing list saved!')
+}
+
+const saveSettingsAndFinish = async () => {
+  await saveSettings({
+    ...form,
+    activatedAt: new Date(), // store activation timestamp
+  })
   currentStep.value = 0
   alert('Automation activated!')
 }
@@ -261,24 +365,32 @@ const sendNow = async () => {
   let reportType = 'Report'
   let reportData = {}
 
-  if (form.dataType === 'patient' || form.dataType === 'both') {
-    // Patient data
+  // Patient data section
+  if ((form.dataType === 'patient' || form.dataType === 'both') && form.includePatientData) {
     const filteredPatients = patients.value || []
     reportData.summary = {
       totalPatients: filteredPatients.length,
+      generatedAt: new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' }),
     }
     reportData.tables = [
       {
-        title: 'Recent Patients',
+        title: 'Patient Data',
         headers: ['Name', 'Procedure', 'Age', 'Price'],
         rows: filteredPatients.slice(0, 10).map(p => [p.name, p.selectedProcedure, p.age, p.calculatedPrice]),
       },
     ]
     reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
+  } else if (form.dataType === 'patient' && !form.includePatientData) {
+    // For patient-only but no detailed data, include only summary counts
+    reportData.summary = {
+      totalPatients: patients.value.length,
+      note: 'Detailed patient data not included',
+    }
+    reportType = 'Patient Report'
   }
 
+  // Web data section
   if (form.dataType === 'web' || form.dataType === 'both') {
-    // Web data from GA
     if (gaData.value) {
       const summary = gaData.value.summary || {}
       reportData.summary = {
