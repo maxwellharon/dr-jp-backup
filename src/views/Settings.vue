@@ -20,38 +20,28 @@
         </button>
       </div>
 
-      <!-- Active Automation Status -->
-      <div v-if="settings?.activatedAt" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
-          <div>
-            <p class="font-semibold text-emerald-800 text-sm">Automation Active</p>
-            <p class="text-xs text-emerald-600">
-              Running since {{ formatDate(settings.activatedAt?.toDate()) }} · Frequency: {{ settings.frequency }} at {{ settings.time }}
-            </p>
+      <!-- Active Automations -->
+      <div v-if="activeAutomations.length > 0" class="space-y-3">
+        <h2 class="text-lg font-bold text-slate-900">⚡ Active Automations</h2>
+        <div v-for="auto in activeAutomations" :key="auto.id" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
+            <div>
+              <p class="font-semibold text-emerald-800 text-sm">{{ auto.reportType }} - {{ auto.frequency }}</p>
+              <p class="text-xs text-emerald-600">Started {{ formatDate(auto.activatedAt?.toDate()) }}</p>
+            </div>
           </div>
+          <button @click="cancelAutomation(auto.id)" class="text-red-500 hover:text-red-700 text-sm font-semibold">
+            <i class="fas fa-times-circle mr-1"></i> Cancel
+          </button>
         </div>
-        <button
-          @click="cancelAutomation"
-          class="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-200 transition"
-        >
-          <i class="fas fa-stop-circle mr-1"></i> Cancel Automation
-        </button>
       </div>
 
       <!-- Wizard Container -->
       <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div class="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-          <div
-            v-for="(step, idx) in steps"
-            :key="idx"
-            class="flex items-center gap-2"
-            :class="{ 'opacity-60': currentStep < idx }"
-          >
-            <div
-              class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300"
-              :class="currentStep === idx ? 'bg-indigo-600 text-white scale-110' : currentStep > idx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'"
-            >
+          <div v-for="(step, idx) in steps" :key="idx" class="flex items-center gap-2" :class="{ 'opacity-60': currentStep < idx }">
+            <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300" :class="currentStep === idx ? 'bg-indigo-600 text-white scale-110' : currentStep > idx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'">
               <i v-if="currentStep > idx" class="fas fa-check"></i>
               <span v-else>{{ idx + 1 }}</span>
             </div>
@@ -168,14 +158,9 @@
                 </div>
               </div>
 
-              <div class="flex gap-2">
-                <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                  Next <i class="fas fa-arrow-right ml-1"></i>
-                </button>
-                <button @click="saveDraft" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition">
-                  Save Draft
-                </button>
-              </div>
+              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                Next <i class="fas fa-arrow-right ml-1"></i>
+              </button>
             </div>
 
             <!-- Step 2: Recipients -->
@@ -195,14 +180,12 @@
                 </div>
                 <p v-if="form.recipients.length === 0" class="text-sm text-slate-400 text-center py-4">No recipients added yet.</p>
               </div>
-              <div class="flex gap-2">
-                <button @click="saveMailingList" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition">
-                  <i class="fas fa-save mr-1"></i> Save Mailing List
-                </button>
-                <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                  Next <i class="fas fa-arrow-right ml-1"></i>
-                </button>
-              </div>
+              <button @click="saveMailingList" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-semibold transition">
+                <i class="fas fa-save mr-1"></i> Save Mailing List
+              </button>
+              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                Next <i class="fas fa-arrow-right ml-1"></i>
+              </button>
             </div>
 
             <!-- Step 3: Frequency -->
@@ -229,14 +212,9 @@
                 <label class="block text-sm font-semibold text-slate-600 mb-1">Time of Day</label>
                 <input type="time" v-model="form.time" class="border rounded-lg p-2 text-sm" />
               </div>
-              <div class="flex gap-2">
-                <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                  Next <i class="fas fa-arrow-right ml-1"></i>
-                </button>
-                <button @click="saveDraft" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition">
-                  Save Draft
-                </button>
-              </div>
+              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                Next <i class="fas fa-arrow-right ml-1"></i>
+              </button>
             </div>
 
             <!-- Step 4: Confirmation -->
@@ -244,7 +222,7 @@
               <div class="text-5xl">✅</div>
               <h2 class="text-xl font-bold text-slate-900">Settings Ready!</h2>
               <p class="text-slate-500">Your automated report will be generated according to your preferences.</p>
-              <button @click="activateAutomation" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition transform hover:scale-105">
+              <button @click="saveSettingsAndFinish" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition transform hover:scale-105">
                 <i class="fas fa-check-circle mr-2"></i> Activate Automation
               </button>
               <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
@@ -297,9 +275,9 @@ import { useAutomationSettings } from '../composables/useAutomationSettings'
 import { useWixData } from '../composables/useWixData'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
 
-const { settings, emailLogs, loadSettings, saveSettings, cancelAutomation, loadEmailLogs, sendReportEmail } = useAutomationSettings()
+const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail, cancelAutomation } = useAutomationSettings()
 const { procedures, patients } = useWixData()
-const { gaData, fetchData: fetchGA } = useGoogleAnalytics()
+const { gaData } = useGoogleAnalytics()
 
 const currentStep = ref(0)
 const newEmail = ref('')
@@ -328,24 +306,40 @@ const defaultForm = {
   recipients: [],
   frequency: 'weekly',
   time: '09:00',
+  activatedAt: null,
 }
 
 const form = reactive({ ...defaultForm })
 
+// Active automations
+const activeAutomations = ref([])
+
+// Computed lists for web filters
 const trafficSources = computed(() => (gaData.value?.trafficSources || []).map(s => s.source))
 const countries = computed(() => (gaData.value?.topCountries || []).map(c => c.country))
 const devices = computed(() => (gaData.value?.deviceCategories || []).map(d => d.device))
 
+// Watch settings from Firestore and merge
 watch(settings, (newSettings) => {
   if (newSettings) {
     Object.assign(form, defaultForm, newSettings)
+    // Update active automations
+    if (newSettings.activatedAt) {
+      activeAutomations.value = [{
+        id: 'global',
+        reportType: newSettings.dataType,
+        frequency: newSettings.frequency,
+        activatedAt: newSettings.activatedAt,
+      }]
+    } else {
+      activeAutomations.value = []
+    }
   }
 }, { immediate: true })
 
 onMounted(() => {
   loadSettings()
   loadEmailLogs()
-  fetchGA()
 })
 
 const addEmail = () => {
@@ -360,23 +354,35 @@ const removeEmail = (idx) => {
   form.recipients.splice(idx, 1)
 }
 
-const saveDraft = async () => {
-  await saveSettings({ ...form })
-  alert('Draft saved!')
-}
-
 const saveMailingList = async () => {
   await saveSettings({ ...form })
   alert('Mailing list saved!')
 }
 
-const activateAutomation = async () => {
-  await saveSettings({
+const saveSettingsAndFinish = async () => {
+  const updatedForm = {
     ...form,
-    activatedAt: new Date(), // Firestore timestamp
-  })
+    activatedAt: new Date(),
+  }
+  await saveSettings(updatedForm)
+  activeAutomations.value = [{
+    id: 'global',
+    reportType: updatedForm.dataType,
+    frequency: updatedForm.frequency,
+    activatedAt: updatedForm.activatedAt,
+  }]
   currentStep.value = 0
   alert('Automation activated!')
+}
+
+const cancelAutomation = async (id) => {
+  const updatedForm = {
+    ...form,
+    activatedAt: null,
+  }
+  await saveSettings(updatedForm)
+  activeAutomations.value = []
+  alert('Automation cancelled.')
 }
 
 const sendNow = async () => {
@@ -388,13 +394,12 @@ const sendNow = async () => {
 
   let reportType = 'Report'
   let reportData = {}
+  const filters = {
+    dateFrom: form.patientDateFrom || form.webDateFrom,
+    dateTo: form.patientDateTo || form.webDateTo,
+  }
 
-  const periodFilters = {
-    dateFrom: form.dataType === 'web' ? form.webDateFrom : form.patientDateFrom,
-    dateTo: form.dataType === 'web' ? form.webDateTo : form.patientDateTo,
-  };
-
-  // Patient data (only if includePatientData is true)
+  // Patient data section (only if includePatientData is checked)
   if ((form.dataType === 'patient' || form.dataType === 'both') && form.includePatientData) {
     const filteredPatients = patients.value || []
     reportData.summary = {
@@ -417,7 +422,7 @@ const sendNow = async () => {
     reportType = 'Patient Report'
   }
 
-  // Web data (always included if dataType includes web)
+  // Web data section (always include AI insights for web)
   if (form.dataType === 'web' || form.dataType === 'both') {
     if (gaData.value) {
       const summary = gaData.value.summary || {}
@@ -449,7 +454,7 @@ const sendNow = async () => {
     }
   }
 
-  const result = await sendReportEmail(form.recipients, reportData, reportType, periodFilters)
+  const result = await sendReportEmail(form.recipients, reportData, reportType, filters)
   sendingNow.value = false
   if (result.success) {
     alert('Report sent successfully!')

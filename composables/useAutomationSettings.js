@@ -20,11 +20,6 @@ export function useAutomationSettings() {
         await setDoc(docRef, newSettings, { merge: true })
     }
 
-    const cancelAutomation = async () => {
-        const docRef = doc(db, 'automationSettings', 'global')
-        await setDoc(docRef, { activatedAt: null }, { merge: true })
-    }
-
     const loadEmailLogs = () => {
         const q = collection(db, 'emailLogs')
         logsUnsub = onSnapshot(q, (snapshot) => {
@@ -70,6 +65,11 @@ export function useAutomationSettings() {
         }
     }
 
+    const cancelAutomation = async (id) => {
+        const docRef = doc(db, 'automationSettings', 'global')
+        await setDoc(docRef, { activatedAt: null }, { merge: true })
+    }
+
     const cleanup = () => {
         if (settingsUnsub) settingsUnsub()
         if (logsUnsub) logsUnsub()
@@ -80,10 +80,10 @@ export function useAutomationSettings() {
         emailLogs,
         loadSettings,
         saveSettings,
-        cancelAutomation,
         loadEmailLogs,
         logEmail,
         sendReportEmail,
+        cancelAutomation,
         cleanup,
     }
 }
