@@ -274,10 +274,13 @@ import NavBar from '../components/NavBar.vue'
 import { useAutomationSettings } from '../composables/useAutomationSettings'
 import { useWixData } from '../composables/useWixData'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
+import { useReportGeneration } from '../composables/useReportGeneration'
+import Chart from 'chart.js/auto'
 
 const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail, cancelAutomation: cancelAutomationRemote } = useAutomationSettings()
 const { procedures, patients } = useWixData()
 const { gaData } = useGoogleAnalytics()
+const { generateDetailedInsights } = useReportGeneration()
 
 const currentStep = ref(0)
 const newEmail = ref('')
@@ -310,20 +313,15 @@ const defaultForm = {
 }
 
 const form = reactive({ ...defaultForm })
-
-// Active automations
 const activeAutomations = ref([])
 
-// Computed lists for web filters
 const trafficSources = computed(() => (gaData.value?.trafficSources || []).map(s => s.source))
 const countries = computed(() => (gaData.value?.topCountries || []).map(c => c.country))
 const devices = computed(() => (gaData.value?.deviceCategories || []).map(d => d.device))
 
-// Watch settings from Firestore and merge
 watch(settings, (newSettings) => {
   if (newSettings) {
     Object.assign(form, defaultForm, newSettings)
-    // Update active automations
     if (newSettings.activatedAt) {
       activeAutomations.value = [{
         id: 'global',
@@ -360,10 +358,7 @@ const saveMailingList = async () => {
 }
 
 const saveSettingsAndFinish = async () => {
-  const updatedForm = {
-    ...form,
-    activatedAt: new Date(),
-  }
+  const updatedForm = { ...form, activatedAt: new Date() }
   await saveSettings(updatedForm)
   activeAutomations.value = [{
     id: 'global',
@@ -381,6 +376,190 @@ const handleCancelAutomation = async (id) => {
   alert('Automation cancelled.')
 }
 
+// Helper: generate chart image from config
+async function generateChartImage(config, width = 600, height = 300) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  const chart = new Chart(ctx, config)
+  await new Promise(resolve => setTimeout(resolve, 300))
+  const image = canvas.toDataURL('image/png')
+  chart.destroy()
+  return image
+}
+
+// Generate patient charts (only if includePatientData)
+async function generatePatientCharts(data) {
+  const charts = []
+  if (!data.length) return charts
+
+  const procMap = new Map()
+  data.forEach(p => procMap.set(p.selectedProcedure, (procMap.get(p.selectedProcedure) || 0) + 1))
+  const topProcs = [...procMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const procLabels = topProcs.map(e => e[0])
+  const procValues = topProcs.map(e => e[1])
+
+  const countryMap = new Map()
+  data.forEach(p => countryMap.set(p.country, (countryMap.get(p.country) || 0) + 1))
+  const countryLabels = [...countryMap.keys()]
+  const countryValues = [...countryMap.values()]
+
+  const ageGroups = { '18-25': 0, '26-35': 0, '36-50': 0, '51+': 0 }
+  data.forEach(p => {
+    const age = Number(p.age)
+    if (age >= 18 && age <= 25) ageGroups['18-25']++
+    else if (age >= 26 && age <= 35) ageGroups['26-35']++
+    else if (age >= 36 && age <= 50) ageGroups['36-50']++
+    else if (age > 50) ageGroups['51+']++
+  })
+  const ageLabels = Object.keys(ageGroups)
+  const ageValues = Object.values(ageGroups)
+
+  // Bar chart: top procedures
+  charts.push({
+    title: 'Top Procedures',
+    image: await generateChartImage({
+      type: 'bar',
+      data: {
+        labels: procLabels,
+        datasets: [{
+          label: 'Requests',
+          data: procValues,
+          backgroundColor: '#6366f1',
+          borderRadius: 8,
+        }]
+      },
+      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    })
+  })
+
+  // Pie chart: countries
+  charts.push({
+    title: 'Country Distribution',
+    image: await generateChartImage({
+      type: 'pie',
+      data: {
+        labels: countryLabels,
+        datasets: [{
+          data: countryValues,
+          backgroundColor: ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16'],
+          borderWidth: 0
+        }]
+      },
+      options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
+    }, 400, 280)
+  })
+
+  // Bar chart: age groups
+  charts.push({
+    title: 'Age Distribution',
+    image: await generateChartImage({
+      type: 'bar',
+      data: {
+        labels: ageLabels,
+        datasets: [{
+          label: 'Patients',
+          data: ageValues,
+          backgroundColor: '#818cf8',
+          borderRadius: 8,
+        }]
+      },
+      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    })
+  })
+
+  return charts
+}
+
+// Generate web charts
+async function generateWebCharts(data) {
+  const charts = []
+  if (!data) return charts
+
+  // Time series line chart
+  if (data.timeSeries && data.timeSeries.length > 0) {
+    charts.push({
+      title: 'Visitors Over Time',
+      image: await generateChartImage({
+        type: 'line',
+        data: {
+          labels: data.timeSeries.map(d => d.date),
+          datasets: [{
+            label: 'Active Users',
+            data: data.timeSeries.map(d => Number(d.activeUsers)),
+            fill: false,
+            borderColor: '#6366f1',
+            tension: 0.1,
+            pointBackgroundColor: '#6366f1'
+          }]
+        },
+        options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      })
+    })
+  }
+
+  // Pie chart: top countries
+  if (data.topCountries && data.topCountries.length > 0) {
+    charts.push({
+      title: 'Top Countries',
+      image: await generateChartImage({
+        type: 'pie',
+        data: {
+          labels: data.topCountries.map(c => c.country),
+          datasets: [{
+            data: data.topCountries.map(c => c.sessions),
+            backgroundColor: ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16'],
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
+      }, 400, 280)
+    })
+  }
+
+  // Bar chart: traffic sources
+  if (data.trafficSources && data.trafficSources.length > 0) {
+    charts.push({
+      title: 'Traffic Sources',
+      image: await generateChartImage({
+        type: 'bar',
+        data: {
+          labels: data.trafficSources.map(s => s.source),
+          datasets: [{
+            label: 'Sessions',
+            data: data.trafficSources.map(s => s.sessions),
+            backgroundColor: '#818cf8',
+            borderRadius: 8,
+          }]
+        },
+        options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      })
+    })
+  }
+
+  // Doughnut chart: devices
+  if (data.deviceCategories && data.deviceCategories.length > 0) {
+    charts.push({
+      title: 'Device Breakdown',
+      image: await generateChartImage({
+        type: 'doughnut',
+        data: {
+          labels: data.deviceCategories.map(d => d.device),
+          datasets: [{
+            data: data.deviceCategories.map(d => d.sessions),
+            backgroundColor: ['#34d399','#60a5fa','#fbbf24'],
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
+      }, 400, 280)
+    })
+  }
+
+  return charts
+}
+
 const sendNow = async () => {
   if (!form.recipients || form.recipients.length === 0) {
     alert('Please add at least one recipient email.')
@@ -389,47 +568,53 @@ const sendNow = async () => {
   sendingNow.value = true
 
   let reportType = 'Report'
-  let reportData = {}
+  let reportData = { summary: {}, tables: [], aiInsights: [], images: [] }
   const filters = {
     dateFrom: form.patientDateFrom || form.webDateFrom,
     dateTo: form.patientDateTo || form.webDateTo,
   }
 
-  // Patient data section (only if includePatientData is checked)
-  if ((form.dataType === 'patient' || form.dataType === 'both') && form.includePatientData) {
+  // Patient section (AI insights always; detailed data and charts only if includePatientData)
+  if (form.dataType === 'patient' || form.dataType === 'both') {
     const filteredPatients = patients.value || []
-    reportData.summary = {
-      totalPatients: filteredPatients.length,
-      generatedAt: new Date().toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' }),
+    // Patient summary always
+    reportData.summary.totalPatients = filteredPatients.length
+
+    // Patient AI insights always
+    const patientInsights = generateDetailedInsights(filteredPatients)
+    if (patientInsights) {
+      reportData.aiInsights.push(
+        { title: 'Procedure Demand Surge', message: `${patientInsights.mostRequested} leads your database, accounting for ${Math.round((patientInsights.mostRequestedCount || 0) / patientInsights.total * 100)}% of total inquiries. Ensure resource and inventory optimization for this segment.` },
+        { title: 'Targeted Age Demographic', message: `The current dataset yields an average age of ${patientInsights.avgAge} years. The 26–35 bracket (${patientInsights.ageGroups['26-35']} patients) demonstrates the sharpest customer lifecycle conversion velocity.` },
+        { title: 'Care Classification Footprint', message: `${patientInsights.nonSurgPercent}% of inbound leads requested non-surgical alternatives. Adding tiered skin-tightening or injectables packaging could capture unrealized revenue.` },
+        { title: 'Geographic Footprint Opportunity', message: `The high concentration of submissions originates from ${patientInsights.countryDistribution[0]?.[0] || 'Kenya'}. Localized hyper-targeted clinical marketing and localized SEO focus will optimize conversion cost.` },
+        { title: 'Asset Conversion Strategy', message: `Average transaction pricing maps at KES ${new Intl.NumberFormat('en-KE').format(patientInsights.avgValue)}. Integrating flexible multi-installment healthcare financing structures could reduce drop-off.` },
+        { title: 'Patient Risk Profiling Matrix', message: `${patientInsights.highBmiCount} prospective clients present a calculated BMI ≥ 30.0, and ${patientInsights.pastSurgCount} note surgical backgrounds. Automated pre-anesthetic tracking flags are recommended.` }
+      )
     }
-    reportData.tables = [
-      {
-        title: 'Patient Data',
+
+    // Patient detailed data and charts only if includePatientData checked
+    if (form.includePatientData) {
+      reportData.tables.push({
+        title: 'Patient Records',
         headers: ['Name', 'Procedure', 'Age', 'Price'],
         rows: filteredPatients.slice(0, 10).map(p => [p.name, p.selectedProcedure, p.age, p.calculatedPrice]),
-      },
-    ]
-    reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
-  } else if (form.dataType === 'patient' && !form.includePatientData) {
-    reportData.summary = {
-      totalPatients: patients.value.length,
-      note: 'Detailed patient data not included',
+      })
+      reportData.images.push(...(await generatePatientCharts(filteredPatients)))
     }
-    reportType = 'Patient Report'
+
+    reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
   }
 
-  // Web data section (always include AI insights for web)
+  // Web section (AI insights and charts always)
   if (form.dataType === 'web' || form.dataType === 'both') {
     if (gaData.value) {
       const summary = gaData.value.summary || {}
-      reportData.summary = {
-        ...reportData.summary,
-        totalUsers: summary.totalUsers,
-        sessions: summary.sessions,
-        pageViews: summary.screenPageViews,
-        bounceRate: summary.bounceRate,
-      }
-      reportData.tables = reportData.tables || []
+      reportData.summary.totalUsers = summary.totalUsers
+      reportData.summary.sessions = summary.sessions
+      reportData.summary.pageViews = summary.screenPageViews
+      reportData.summary.bounceRate = summary.bounceRate
+
       reportData.tables.push({
         title: 'Top Pages',
         headers: ['Page', 'Views'],
@@ -440,9 +625,20 @@ const sendNow = async () => {
         headers: ['Source', 'Sessions'],
         rows: (gaData.value.trafficSources || []).map(s => [s.source, s.sessions]),
       })
-      if (form.dataType === 'web') {
-        reportType = 'Web Analytics Report'
-      }
+
+      // Web AI insights
+      reportData.aiInsights.push(
+        { title: 'Geographic Focus', message: `The majority of your traffic comes from ${gaData.value.topCountries?.[0]?.country || 'Kenya'}. Consider localized content and targeted ads for this region.` },
+        { title: 'Top Performing Page', message: `"${gaData.value.topPages?.[0]?.pagePath || 'Home'}" is your most visited page. Ensure it has clear CTAs and fast loading times to convert visitors.` },
+        { title: 'Traffic Acquisition', message: `Most sessions originate from ${gaData.value.trafficSources?.[0]?.source || 'Direct'}. Invest more in this channel or diversify to reduce dependency.` },
+        { title: 'Mobile Experience', message: `${Math.round((gaData.value.deviceCategories?.find(d=>d.device==='mobile')?.sessions || 0) / (summary.sessions || 1) * 100)}% of sessions come from mobile devices. Optimize mobile UX to reduce bounce and improve engagement.` },
+        { title: 'Engagement Health', message: `Bounce rate is ${summary.bounceRate}%. ${Number(summary.bounceRate) > 50 ? 'Consider improving content relevance or page speed.' : 'You are doing well, keep monitoring.'}` },
+        { title: 'Content Strategy', message: `Your average session duration is ${formatDuration(summary.averageSessionDuration)}. Longer sessions indicate strong content engagement.` }
+      )
+
+      reportData.images.push(...(await generateWebCharts(gaData.value)))
+
+      if (form.dataType === 'web') reportType = 'Web Analytics Report'
     } else {
       alert('Web data not available yet. Please try again later.')
       sendingNow.value = false
@@ -457,6 +653,14 @@ const sendNow = async () => {
   } else {
     alert('Failed to send report: ' + result.error)
   }
+}
+
+function formatDuration(seconds) {
+  if (!seconds) return '0s'
+  const sec = Number(seconds)
+  const mins = Math.floor(sec / 60)
+  const remainingSec = Math.round(sec % 60)
+  return `${mins}m ${remainingSec}s`
 }
 
 function formatDate(date) {
