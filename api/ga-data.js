@@ -98,7 +98,7 @@ export default async function handler(req, res) {
             metrics: [
                 { name: 'screenPageViews' },
                 { name: 'sessions' },
-                { name: 'averageEngagementTime' },
+                { name: 'userEngagementDuration' },   // total engagement time (seconds)
                 { name: 'bounceRate' },
                 { name: 'exits' },
             ],
@@ -106,15 +106,20 @@ export default async function handler(req, res) {
             limit: 10,
         });
 
-        const topPages = (pagesResponse.rows || []).map(row => ({
-            pagePath: row.dimensionValues[0].value,
-            pageTitle: row.dimensionValues[1].value,
-            screenPageViews: Number(row.metricValues[0].value),
-            sessions: Number(row.metricValues[1].value),
-            averageEngagementTime: Number(row.metricValues[2].value),
-            bounceRate: Number(row.metricValues[3].value),
-            exits: Number(row.metricValues[4].value),
-        }));
+        const topPages = (pagesResponse.rows || []).map(row => {
+            const pageviews = Number(row.metricValues[0].value);
+            const userEngagementDuration = Number(row.metricValues[2].value);
+            const avgEngagementTime = pageviews > 0 ? Math.round(userEngagementDuration / pageviews) : 0;
+            return {
+                pagePath: row.dimensionValues[0].value,
+                pageTitle: row.dimensionValues[1].value,
+                screenPageViews: pageviews,
+                sessions: Number(row.metricValues[1].value),
+                averageEngagementTime: avgEngagementTime, // in seconds
+                bounceRate: Number(row.metricValues[3].value),
+                exits: Number(row.metricValues[4].value),
+            };
+        });
 
         // ------------------------------------------------------------
         // 4. Top countries
@@ -221,7 +226,8 @@ export default async function handler(req, res) {
             hourly,
         });
     } catch (error) {
-        console.error('❌ GA API error:', error.message);
+        console.error('❌ GA API error:', error);
+        console.error('Error details:', JSON.stringify(error.details, null, 2));
         res.status(500).json({
             error: error.message,
             code: error.code || null,
