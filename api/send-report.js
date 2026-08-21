@@ -96,33 +96,27 @@ export default async function handler(req, res) {
             y += 8;
 
             reportData.aiInsights.forEach(ins => {
-                // Calculate text height
-                const lines = doc.splitTextToSize(ins.message, 174); // maxWidth = 174 (within card padding)
-                const textHeight = lines.length * 4; // approximate line height
-                const cardHeight = Math.max(20, 6 + textHeight + 5); // title + message + padding
+                const lines = doc.splitTextToSize(ins.message, 174);
+                const textHeight = lines.length * 4;
+                const cardHeight = Math.max(20, 6 + textHeight + 5);
 
                 if (y + cardHeight > 280) {
                     doc.addPage();
                     y = 20;
                 }
 
-                // Card background
                 doc.setFillColor(...lightBg);
                 doc.roundedRect(14, y, 182, cardHeight, 2, 2, 'F');
-
-                // Title
                 doc.setFont('helvetica', 'bold');
                 doc.setFontSize(10);
                 doc.setTextColor(...accent);
                 doc.text(ins.title, 18, y + 6);
-
-                // Message lines
                 doc.setFont('helvetica', 'normal');
                 doc.setFontSize(9);
                 doc.setTextColor(60, 60, 60);
                 let lineY = y + 11;
                 lines.forEach(line => {
-                    if (lineY > y + cardHeight - 2) return; // safety
+                    if (lineY > y + cardHeight - 2) return;
                     doc.text(line, 18, lineY);
                     lineY += 4;
                 });
