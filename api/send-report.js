@@ -19,14 +19,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'No report data provided' });
     }
 
-    // Extract date range from filters if present
-    const periodText = filters?.dateFrom && filters?.dateTo
-        ? `For the period ${filters.dateFrom} to ${filters.dateTo}`
-        : `For the period ${new Date().toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi' })}`;
-
-    const subjectLine = filters?.dateFrom && filters?.dateTo
-        ? `${reportType} - For the period ${filters.dateFrom} to ${filters.dateTo}`
-        : `${reportType} - For the period ${new Date().toLocaleDateString('en-KE', { timeZone: 'Africa/Nairobi' })}`;
+    // Build period text from filters
+    const dateFrom = filters?.dateFrom || 'Start';
+    const dateTo = filters?.dateTo || 'End';
+    const periodText = `${dateFrom} to ${dateTo}`;
+    const subjectLine = `${reportType} - For the period ${periodText}`;
 
     try {
         const doc = new jsPDF('p', 'mm', 'a4');

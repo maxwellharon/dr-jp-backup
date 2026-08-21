@@ -21,14 +21,22 @@
       </div>
 
       <!-- Active Automation Status -->
-      <div v-if="settings?.activatedAt" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3">
-        <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
-        <div>
-          <p class="font-semibold text-emerald-800 text-sm">Automation Active</p>
-          <p class="text-xs text-emerald-600">
-            Running since {{ formatDate(settings.activatedAt?.toDate()) }} · Frequency: {{ settings.frequency }} at {{ settings.time }}
-          </p>
+      <div v-if="settings?.activatedAt" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
+          <div>
+            <p class="font-semibold text-emerald-800 text-sm">Automation Active</p>
+            <p class="text-xs text-emerald-600">
+              Running since {{ formatDate(settings.activatedAt?.toDate()) }} · Frequency: {{ settings.frequency }} at {{ settings.time }}
+            </p>
+          </div>
         </div>
+        <button
+          @click="cancelAutomation"
+          class="bg-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-200 transition"
+        >
+          <i class="fas fa-stop-circle mr-1"></i> Cancel Automation
+        </button>
       </div>
 
       <!-- Wizard Container -->
@@ -82,7 +90,7 @@
                 <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
               </div>
 
-              <!-- Patient Data Filters (only if patient or both) -->
+              <!-- Patient Data Filters -->
               <div v-if="form.dataType === 'patient' || form.dataType === 'both'" class="space-y-4 border-l-4 border-indigo-200 pl-4">
                 <h3 class="font-semibold text-slate-700 flex items-center gap-2">
                   <i class="fas fa-user-injured text-indigo-500"></i> Patient Data Filters
@@ -122,7 +130,7 @@
                 </div>
               </div>
 
-              <!-- Web Data Filters (only if web or both) -->
+              <!-- Web Data Filters -->
               <div v-if="form.dataType === 'web' || form.dataType === 'both'" class="space-y-4 border-l-4 border-emerald-200 pl-4">
                 <h3 class="font-semibold text-slate-700 flex items-center gap-2">
                   <i class="fas fa-globe text-emerald-500"></i> Web Data Filters
@@ -160,9 +168,14 @@
                 </div>
               </div>
 
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                Next <i class="fas fa-arrow-right ml-1"></i>
-              </button>
+              <div class="flex gap-2">
+                <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                  Next <i class="fas fa-arrow-right ml-1"></i>
+                </button>
+                <button @click="saveDraft" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition">
+                  Save Draft
+                </button>
+              </div>
             </div>
 
             <!-- Step 2: Recipients -->
@@ -182,12 +195,14 @@
                 </div>
                 <p v-if="form.recipients.length === 0" class="text-sm text-slate-400 text-center py-4">No recipients added yet.</p>
               </div>
-              <button @click="saveMailingList" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-semibold transition">
-                <i class="fas fa-save mr-1"></i> Save Mailing List
-              </button>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                Next <i class="fas fa-arrow-right ml-1"></i>
-              </button>
+              <div class="flex gap-2">
+                <button @click="saveMailingList" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition">
+                  <i class="fas fa-save mr-1"></i> Save Mailing List
+                </button>
+                <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                  Next <i class="fas fa-arrow-right ml-1"></i>
+                </button>
+              </div>
             </div>
 
             <!-- Step 3: Frequency -->
@@ -214,9 +229,14 @@
                 <label class="block text-sm font-semibold text-slate-600 mb-1">Time of Day</label>
                 <input type="time" v-model="form.time" class="border rounded-lg p-2 text-sm" />
               </div>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                Next <i class="fas fa-arrow-right ml-1"></i>
-              </button>
+              <div class="flex gap-2">
+                <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                  Next <i class="fas fa-arrow-right ml-1"></i>
+                </button>
+                <button @click="saveDraft" class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold hover:bg-slate-200 transition">
+                  Save Draft
+                </button>
+              </div>
             </div>
 
             <!-- Step 4: Confirmation -->
@@ -224,7 +244,7 @@
               <div class="text-5xl">✅</div>
               <h2 class="text-xl font-bold text-slate-900">Settings Ready!</h2>
               <p class="text-slate-500">Your automated report will be generated according to your preferences.</p>
-              <button @click="saveSettingsAndFinish" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition transform hover:scale-105">
+              <button @click="activateAutomation" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition transform hover:scale-105">
                 <i class="fas fa-check-circle mr-2"></i> Activate Automation
               </button>
               <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
@@ -277,9 +297,9 @@ import { useAutomationSettings } from '../composables/useAutomationSettings'
 import { useWixData } from '../composables/useWixData'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
 
-const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail } = useAutomationSettings()
+const { settings, emailLogs, loadSettings, saveSettings, cancelAutomation, loadEmailLogs, sendReportEmail } = useAutomationSettings()
 const { procedures, patients } = useWixData()
-const { gaData } = useGoogleAnalytics()
+const { gaData, fetchData: fetchGA } = useGoogleAnalytics()
 
 const currentStep = ref(0)
 const newEmail = ref('')
@@ -312,12 +332,10 @@ const defaultForm = {
 
 const form = reactive({ ...defaultForm })
 
-// Computed lists for web filters (from GA data)
 const trafficSources = computed(() => (gaData.value?.trafficSources || []).map(s => s.source))
 const countries = computed(() => (gaData.value?.topCountries || []).map(c => c.country))
 const devices = computed(() => (gaData.value?.deviceCategories || []).map(d => d.device))
 
-// Watch settings from Firestore and merge
 watch(settings, (newSettings) => {
   if (newSettings) {
     Object.assign(form, defaultForm, newSettings)
@@ -327,6 +345,7 @@ watch(settings, (newSettings) => {
 onMounted(() => {
   loadSettings()
   loadEmailLogs()
+  fetchGA()
 })
 
 const addEmail = () => {
@@ -341,15 +360,20 @@ const removeEmail = (idx) => {
   form.recipients.splice(idx, 1)
 }
 
+const saveDraft = async () => {
+  await saveSettings({ ...form })
+  alert('Draft saved!')
+}
+
 const saveMailingList = async () => {
   await saveSettings({ ...form })
   alert('Mailing list saved!')
 }
 
-const saveSettingsAndFinish = async () => {
+const activateAutomation = async () => {
   await saveSettings({
     ...form,
-    activatedAt: new Date(), // store activation timestamp
+    activatedAt: new Date(), // Firestore timestamp
   })
   currentStep.value = 0
   alert('Automation activated!')
@@ -365,7 +389,12 @@ const sendNow = async () => {
   let reportType = 'Report'
   let reportData = {}
 
-  // Patient data section
+  const periodFilters = {
+    dateFrom: form.dataType === 'web' ? form.webDateFrom : form.patientDateFrom,
+    dateTo: form.dataType === 'web' ? form.webDateTo : form.patientDateTo,
+  };
+
+  // Patient data (only if includePatientData is true)
   if ((form.dataType === 'patient' || form.dataType === 'both') && form.includePatientData) {
     const filteredPatients = patients.value || []
     reportData.summary = {
@@ -381,7 +410,6 @@ const sendNow = async () => {
     ]
     reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
   } else if (form.dataType === 'patient' && !form.includePatientData) {
-    // For patient-only but no detailed data, include only summary counts
     reportData.summary = {
       totalPatients: patients.value.length,
       note: 'Detailed patient data not included',
@@ -389,7 +417,7 @@ const sendNow = async () => {
     reportType = 'Patient Report'
   }
 
-  // Web data section
+  // Web data (always included if dataType includes web)
   if (form.dataType === 'web' || form.dataType === 'both') {
     if (gaData.value) {
       const summary = gaData.value.summary || {}
@@ -421,7 +449,7 @@ const sendNow = async () => {
     }
   }
 
-  const result = await sendReportEmail(form.recipients, reportData, reportType, form)
+  const result = await sendReportEmail(form.recipients, reportData, reportType, periodFilters)
   sendingNow.value = false
   if (result.success) {
     alert('Report sent successfully!')
