@@ -1,194 +1,198 @@
 <template>
   <div class="space-y-6">
-    <!-- Loading -->
-    <div v-if="loading" class="flex flex-col items-center justify-center py-20">
-      <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-indigo-600"></div>
-      <p class="text-sm font-medium text-slate-500 mt-4">Loading Google Analytics data...</p>
+    <!-- Header with Export Buttons -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <h3 class="text-xl font-bold text-slate-900">Site Analytics Report</h3>
+        <p class="text-sm text-slate-500">Comprehensive data pulled from Google Analytics 4</p>
+      </div>
+      <div class="flex gap-3">
+        <button
+          @click="exportPDF"
+          :disabled="!gaData || loading"
+          class="bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 disabled:opacity-50"
+        >
+          <i class="fas fa-file-pdf"></i> Export PDF
+        </button>
+        <button
+          @click="exportExcel"
+          :disabled="!gaData || loading"
+          class="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 disabled:opacity-50"
+        >
+          <i class="fas fa-file-excel"></i> Export Excel
+        </button>
+      </div>
     </div>
 
-    <!-- Error -->
+    <!-- Loading State -->
+    <div v-if="loading" class="flex flex-col items-center justify-center py-20">
+      <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-indigo-600"></div>
+      <p class="text-sm font-medium text-slate-500 mt-4">Fetching analytics data...</p>
+    </div>
+
+    <!-- Error State -->
     <div v-else-if="error" class="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
       <i class="fas fa-exclamation-triangle text-red-400 text-2xl mb-2"></i>
-      <p class="text-red-700 font-semibold">Failed to load site data</p>
+      <p class="text-red-700 font-semibold">Failed to load data</p>
       <p class="text-xs text-red-500 mt-1">{{ error }}</p>
       <button @click="refresh" class="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl text-sm hover:bg-red-700 transition">
         Retry
       </button>
     </div>
 
-    <!-- Site Report Content -->
+    <!-- Report Content -->
     <template v-else-if="gaData">
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-5 border-b border-slate-100">
-          <div>
-            <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
-              <i class="fas fa-chart-bar text-indigo-500"></i> Site Analytics Report
-            </h3>
-            <p class="text-xs text-slate-500 mt-1">Data period: last 30 days</p>
-          </div>
-          <div class="flex gap-2 mt-3 sm:mt-0">
-            <button @click="downloadExcel" class="bg-emerald-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-emerald-700 transition">
-              <i class="fas fa-file-excel mr-1"></i> Excel
-            </button>
-            <button @click="downloadPDF" class="bg-rose-600 text-white px-3 py-2 rounded-lg text-sm font-semibold hover:bg-rose-700 transition">
-              <i class="fas fa-file-pdf mr-1"></i> PDF
-            </button>
-          </div>
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <p class="text-xs font-medium text-slate-400 uppercase">Total Users</p>
+          <p class="text-2xl font-bold text-slate-800">{{ formatNumber(rawSummary.totalUsers) }}</p>
         </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <p class="text-xs font-medium text-slate-400 uppercase">New Users</p>
+          <p class="text-2xl font-bold text-slate-800">{{ formatNumber(rawSummary.newUsers) }}</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <p class="text-xs font-medium text-slate-400 uppercase">Sessions</p>
+          <p class="text-2xl font-bold text-slate-800">{{ formatNumber(rawSummary.sessions) }}</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <p class="text-xs font-medium text-slate-400 uppercase">Page Views</p>
+          <p class="text-2xl font-bold text-slate-800">{{ formatNumber(rawSummary.screenPageViews) }}</p>
+        </div>
+      </div>
 
-        <!-- Summary stats -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-5">
-          <div class="p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl">
-            <p class="text-xs font-medium text-indigo-600 uppercase tracking-wider">Total Users</p>
-            <p class="text-2xl font-bold text-indigo-900">{{ formatNumber(summary.totalUsers) }}</p>
-          </div>
-          <div class="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl">
-            <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">New Users</p>
-            <p class="text-2xl font-bold text-emerald-900">{{ formatNumber(summary.newUsers) }}</p>
-          </div>
-          <div class="p-4 bg-amber-50/50 border border-amber-100 rounded-xl">
-            <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Sessions</p>
-            <p class="text-2xl font-bold text-amber-900">{{ formatNumber(summary.sessions) }}</p>
-          </div>
-          <div class="p-4 bg-rose-50/50 border border-rose-100 rounded-xl">
-            <p class="text-xs font-medium text-rose-600 uppercase tracking-wider">Page Views</p>
-            <p class="text-2xl font-bold text-rose-900">{{ formatNumber(summary.screenPageViews) }}</p>
-          </div>
+      <!-- Additional Metrics -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <p class="text-xs font-medium text-slate-400 uppercase">Avg Engagement Time</p>
+          <p class="text-xl font-bold text-slate-800">{{ formatDuration(rawSummary.averageSessionDuration) }}</p>
         </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <p class="text-xs font-medium text-slate-400 uppercase">Bounce Rate</p>
+          <p class="text-xl font-bold text-slate-800">{{ rawSummary.bounceRate }}%</p>
+        </div>
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+          <p class="text-xs font-medium text-slate-400 uppercase">Engagement Rate</p>
+          <p class="text-xl font-bold text-slate-800">{{ rawSummary.engagementRate }}%</p>
+        </div>
+      </div>
 
-        <!-- Traffic sources and devices tables -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 p-5">
-          <div>
-            <h4 class="font-bold text-slate-800 mb-2 text-sm uppercase tracking-wider text-slate-400">Traffic Sources</h4>
-            <div class="bg-white rounded-xl border border-slate-200 p-3">
-              <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-slate-500">
-                  <tr><th class="px-3 py-2 text-left">Source</th><th class="px-3 py-2 text-right">Sessions</th></tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="src in trafficSources" :key="src.source">
-                    <td class="px-3 py-2">{{ src.source }}</td>
-                    <td class="px-3 py-2 text-right">{{ src.sessions }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div>
-            <h4 class="font-bold text-slate-800 mb-2 text-sm uppercase tracking-wider text-slate-400">Device Breakdown</h4>
-            <div class="bg-white rounded-xl border border-slate-200 p-3">
-              <table class="min-w-full text-sm">
-                <thead class="bg-slate-50 text-slate-500">
-                  <tr><th class="px-3 py-2 text-left">Device</th><th class="px-3 py-2 text-right">Sessions</th></tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="dev in deviceCategories" :key="dev.device">
-                    <td class="px-3 py-2 capitalize">{{ dev.device }}</td>
-                    <td class="px-3 py-2 text-right">{{ dev.sessions }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+      <!-- Time Series Chart -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <h4 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Daily Active Users</h4>
+        <canvas ref="timeSeriesChart" height="200"></canvas>
+      </div>
 
-        <!-- AI Insights -->
-        <div class="bg-gradient-to-br from-purple-50 via-indigo-50/40 to-white border-t border-purple-200 p-5 md:p-6">
-          <div class="flex items-center gap-3 mb-4">
-            <span class="h-8 w-8 bg-purple-600 text-white rounded-lg flex items-center justify-center">
-              <i class="fas fa-brain"></i>
-            </span>
-            <h4 class="font-extrabold text-slate-900">AI Site Insights</h4>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div v-for="(ins, idx) in aiInsights" :key="idx" class="bg-white/70 p-4 rounded-xl border border-purple-100 flex items-start gap-3">
-              <span :class="['h-8 w-8 rounded-lg flex items-center justify-center text-sm shrink-0', ins.iconBg]">
-                <i :class="ins.icon"></i>
-              </span>
-              <div>
-                <p class="font-bold text-slate-800 text-sm">{{ ins.title }}</p>
-                <p class="text-xs text-slate-600 mt-1">{{ ins.message }}</p>
-              </div>
-            </div>
-          </div>
+      <!-- Top Pages Table -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
+        <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Top Pages</h4>
+        <table class="min-w-full divide-y divide-slate-200">
+          <thead>
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Page</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Pageviews</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Avg Engagement</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Bounce Rate</th>
+              <th class="px-4 py-2 text-left text-xs font-semibold text-slate-500 uppercase">Sessions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <tr v-for="page in rawTopPages" :key="page.pagePath">
+              <td class="px-4 py-2 text-sm font-medium text-slate-700">{{ page.pagePath }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ page.screenPageViews }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ formatDuration(page.averageEngagementTime) }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ page.bounceRate }}%</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ page.sessions }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Two-column: Countries and Sources -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Top Countries</h4>
+          <ul class="space-y-2">
+            <li v-for="c in rawTopCountries" :key="c.country" class="flex justify-between items-center">
+              <span class="text-sm text-slate-600">{{ c.country }}</span>
+              <span class="font-semibold text-slate-800">{{ c.sessions }} sessions</span>
+            </li>
+          </ul>
         </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Traffic Sources</h4>
+          <ul class="space-y-2">
+            <li v-for="s in rawTrafficSources" :key="s.sessionSource" class="flex justify-between items-center">
+              <span class="text-sm text-slate-600">{{ s.sessionSource }}</span>
+              <span class="font-semibold text-slate-800">{{ s.sessions }} sessions</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Devices and User Types -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">Device Categories</h4>
+          <ul class="space-y-2">
+            <li v-for="d in rawDeviceCategories" :key="d.deviceCategory" class="flex justify-between items-center">
+              <span class="text-sm text-slate-600 capitalize">{{ d.deviceCategory }}</span>
+              <span class="font-semibold text-slate-800">{{ d.sessions }} sessions</span>
+            </li>
+          </ul>
+        </div>
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <h4 class="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider text-slate-400">User Types</h4>
+          <ul class="space-y-2">
+            <li v-for="u in rawUserTypes" :key="u.newVsReturning" class="flex justify-between items-center">
+              <span class="text-sm text-slate-600">{{ u.newVsReturning }}</span>
+              <span class="font-semibold text-slate-800">{{ u.sessions }} sessions</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Hourly Breakdown Chart -->
+      <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+        <h4 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Sessions by Hour</h4>
+        <canvas ref="hourlyChart" height="150"></canvas>
       </div>
     </template>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
-import * as XLSX from 'xlsx'
+import Chart from 'chart.js/auto'
 import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+import 'jspdf-autotable'
+import * as XLSX from 'xlsx'
 
 const { gaData, loading, error, refresh } = useGoogleAnalytics()
 
-const summary = computed(() => gaData.value?.summary || {})
-const timeSeries = computed(() => gaData.value?.timeSeries || [])
-const topCountries = computed(() => gaData.value?.topCountries || [])
-const topPages = computed(() => gaData.value?.topPages || [])
-const trafficSources = computed(() => gaData.value?.trafficSources || [])
-const deviceCategories = computed(() => gaData.value?.deviceCategories || [])
+// Refs for charts
+const timeSeriesChartCanvas = ref(null)
+const hourlyChartCanvas = ref(null)
+let timeSeriesChartInstance = null
+let hourlyChartInstance = null
 
-const aiInsights = computed(() => {
-  if (!gaData.value) return []
-  const s = summary.value
-  const topCountry = topCountries.value[0]?.country || 'Kenya'
-  const topPage = topPages.value[0]?.pagePath || 'Home'
-  const topSource = trafficSources.value[0]?.source || 'Direct'
-  const mobileSessions = Number(deviceCategories.value.find(d => d.device === 'mobile')?.sessions || 0)
-  const totalSessions = Number(s.sessions) || 1
-  const mobilePercent = Math.round((mobileSessions / totalSessions) * 100)
-  const bounce = Number(s.bounceRate) || 0
+// Raw data computed
+const rawSummary = computed(() => gaData.value?.summary || {})
+const rawTimeSeries = computed(() => gaData.value?.timeSeries || [])
+const rawTopPages = computed(() => gaData.value?.topPages || [])
+const rawTopCountries = computed(() => gaData.value?.topCountries || [])
+const rawTrafficSources = computed(() => gaData.value?.trafficSources || [])
+const rawDeviceCategories = computed(() => gaData.value?.deviceCategories || [])
+const rawUserTypes = computed(() => gaData.value?.userTypes || [])
+const rawHourly = computed(() => gaData.value?.hourly || [])
 
-  return [
-    {
-      title: 'Geographic Focus',
-      message: `The majority of your traffic comes from ${topCountry}. Consider localized content and targeted ads for this region.`,
-      icon: 'fas fa-globe-africa',
-      iconBg: 'bg-indigo-50 text-indigo-600'
-    },
-    {
-      title: 'Top Performing Page',
-      message: `"${topPage}" is your most visited page. Ensure it has clear CTAs and fast loading times to convert visitors.`,
-      icon: 'fas fa-file-alt',
-      iconBg: 'bg-emerald-50 text-emerald-600'
-    },
-    {
-      title: 'Traffic Acquisition',
-      message: `Most sessions originate from ${topSource}. Invest more in this channel or diversify to reduce dependency.`,
-      icon: 'fas fa-chart-line',
-      iconBg: 'bg-amber-50 text-amber-600'
-    },
-    {
-      title: 'Mobile Experience',
-      message: `${mobilePercent}% of sessions come from mobile devices. Optimize mobile UX to reduce bounce and improve engagement.`,
-      icon: 'fas fa-mobile-alt',
-      iconBg: 'bg-rose-50 text-rose-600'
-    },
-    {
-      title: 'Engagement Health',
-      message: `Bounce rate is ${bounce}%. ${bounce > 50 ? 'Consider improving content relevance or page speed.' : 'You are doing well, keep monitoring.'}`,
-      icon: 'fas fa-heartbeat',
-      iconBg: 'bg-purple-50 text-purple-600'
-    },
-    {
-      title: 'Content Strategy',
-      message: `Your average session duration is ${formatDuration(s.averageSessionDuration)}. Longer sessions indicate strong content engagement.`,
-      icon: 'fas fa-clock',
-      iconBg: 'bg-blue-50 text-blue-600'
-    }
-  ]
-})
-
+// Formatting helpers
 function formatNumber(value) {
   if (!value) return '0'
   return Number(value).toLocaleString('en-KE')
 }
-
 function formatDuration(seconds) {
   if (!seconds) return '0s'
   const sec = Number(seconds)
@@ -196,167 +200,269 @@ function formatDuration(seconds) {
   const remainingSec = Math.round(sec % 60)
   return `${mins}m ${remainingSec}s`
 }
-
-async function downloadExcel() {
-  const summarySheet = XLSX.utils.aoa_to_sheet([
-    ['Metric', 'Value'],
-    ['Total Users', summary.value.totalUsers],
-    ['New Users', summary.value.newUsers],
-    ['Sessions', summary.value.sessions],
-    ['Page Views', summary.value.screenPageViews],
-    ['Avg Session Duration', summary.value.averageSessionDuration],
-    ['Bounce Rate', summary.value.bounceRate + '%'],
-    ['Engagement Rate', summary.value.engagementRate + '%']
-  ])
-
-  const timeSheet = XLSX.utils.json_to_sheet(timeSeries.value.map(d => ({
-    Date: d.date,
-    ActiveUsers: d.activeUsers,
-    NewUsers: d.newUsers,
-    Sessions: d.sessions,
-    PageViews: d.pageviews
-  })))
-
-  const countriesSheet = XLSX.utils.json_to_sheet(topCountries.value.map(c => ({
-    Country: c.country,
-    Sessions: c.sessions
-  })))
-
-  const pagesSheet = XLSX.utils.json_to_sheet(topPages.value.map(p => ({
-    Page: p.pagePath,
-    PageViews: p.pageviews
-  })))
-
-  const trafficSheet = XLSX.utils.json_to_sheet(trafficSources.value.map(t => ({
-    Source: t.source,
-    Sessions: t.sessions
-  })))
-
-  const deviceSheet = XLSX.utils.json_to_sheet(deviceCategories.value.map(d => ({
-    Device: d.device,
-    Sessions: d.sessions
-  })))
-
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary')
-  XLSX.utils.book_append_sheet(wb, timeSheet, 'Time Series')
-  XLSX.utils.book_append_sheet(wb, countriesSheet, 'Countries')
-  XLSX.utils.book_append_sheet(wb, pagesSheet, 'Top Pages')
-  XLSX.utils.book_append_sheet(wb, trafficSheet, 'Traffic Sources')
-  XLSX.utils.book_append_sheet(wb, deviceSheet, 'Devices')
-  XLSX.writeFile(wb, `Site_Analytics_${new Date().toISOString().slice(0,10)}.xlsx`)
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))
+  return d.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' })
 }
 
-async function downloadPDF() {
-  const doc = new jsPDF('p', 'mm', 'a4')
-  const now = new Date().toLocaleString('en-KE', { dateStyle: 'full', timeStyle: 'short' })
-  const primary = [30, 41, 59]
-  const accent = [79, 70, 229]
-  let y = 20
+// Chart creation
+function createCharts() {
+  if (!gaData.value) return
 
-  // Header
-  doc.setFillColor(...primary)
-  doc.rect(0, 0, 210, 30, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(18)
-  doc.text('DR. JP OGALO CLINIC', 14, 12)
+  // Destroy existing charts
+  if (timeSeriesChartInstance) timeSeriesChartInstance.destroy()
+  if (hourlyChartInstance) hourlyChartInstance.destroy()
+
+  // Time series chart
+  if (timeSeriesChartCanvas.value && rawTimeSeries.value.length) {
+    timeSeriesChartInstance = new Chart(timeSeriesChartCanvas.value, {
+      type: 'line',
+      data: {
+        labels: rawTimeSeries.value.map(d => formatDate(d.date)),
+        datasets: [
+          { label: 'Active Users', data: rawTimeSeries.value.map(d => d.activeUsers), borderColor: '#6366f1', tension: 0.2, fill: false },
+          { label: 'New Users', data: rawTimeSeries.value.map(d => d.newUsers), borderColor: '#10b981', tension: 0.2, fill: false }
+        ]
+      },
+      options: { responsive: true, plugins: { legend: { display: true, position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+    })
+  }
+
+  // Hourly chart
+  if (hourlyChartCanvas.value && rawHourly.value.length) {
+    hourlyChartInstance = new Chart(hourlyChartCanvas.value, {
+      type: 'bar',
+      data: {
+        labels: rawHourly.value.map(h => `${h.hour}:00`),
+        datasets: [{ label: 'Sessions', data: rawHourly.value.map(h => h.sessions), backgroundColor: '#818cf8', borderRadius: 4 }]
+      },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    })
+  }
+}
+
+// Watch for data changes
+watch(gaData, (newData) => {
+  if (newData) {
+    nextTick(() => createCharts())
+  }
+})
+
+onMounted(() => {
+  if (gaData.value) {
+    nextTick(() => createCharts())
+  }
+})
+
+onUnmounted(() => {
+  if (timeSeriesChartInstance) timeSeriesChartInstance.destroy()
+  if (hourlyChartInstance) hourlyChartInstance.destroy()
+})
+
+// ================= EXPORT PDF =================
+async function exportPDF() {
+  if (!gaData.value) return
+
+  const doc = new jsPDF()
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const margin = 14
+
+  // Title
+  doc.setFontSize(20)
+  doc.text('Site Analytics Report', margin, 20)
   doc.setFontSize(10)
-  doc.setFont('helvetica', 'normal')
-  doc.text('Google Analytics Site Report', 14, 19)
-  doc.text(`Generated: ${now}`, 14, 26)
-  y = 40
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 28)
 
-  // Summary
-  doc.setTextColor(...primary)
-  doc.setFontSize(13)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Summary Metrics', 14, y)
-  y += 6
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  const metrics = [
-    ['Total Users', formatNumber(summary.value.totalUsers)],
-    ['New Users', formatNumber(summary.value.newUsers)],
-    ['Sessions', formatNumber(summary.value.sessions)],
-    ['Page Views', formatNumber(summary.value.screenPageViews)],
-    ['Avg Session Duration', formatDuration(summary.value.averageSessionDuration)],
-    ['Bounce Rate', summary.value.bounceRate + '%'],
-    ['Engagement Rate', summary.value.engagementRate + '%']
-  ]
-  metrics.forEach(([label, value]) => {
-    doc.text(`${label}: ${value}`, 14, y)
-    y += 5
+  // Summary metrics
+  doc.setFontSize(14)
+  doc.text('Summary', margin, 40)
+  doc.autoTable({
+    startY: 45,
+    head: [['Metric', 'Value']],
+    body: [
+      ['Total Users', formatNumber(rawSummary.value.totalUsers)],
+      ['New Users', formatNumber(rawSummary.value.newUsers)],
+      ['Sessions', formatNumber(rawSummary.value.sessions)],
+      ['Page Views', formatNumber(rawSummary.value.screenPageViews)],
+      ['Avg Engagement Time', formatDuration(rawSummary.value.averageSessionDuration)],
+      ['Bounce Rate', `${rawSummary.value.bounceRate}%`],
+      ['Engagement Rate', `${rawSummary.value.engagementRate}%`],
+    ],
   })
 
-  // AI Insights
-  y += 5
-  doc.setFillColor(...accent)
-  doc.rect(14, y - 4, 182, 0.8, 'F')
-  y += 6
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text('AI Insights', 14, y)
-  y += 6
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
-  aiInsights.value.forEach(ins => {
-    if (y > 270) { doc.addPage(); y = 20 }
-    doc.text(`${ins.title}`, 14, y)
-    y += 4
-    doc.text(`  ${ins.message}`, 14, y)
-    y += 6
+  // Time series table
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('Daily Traffic', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Date', 'Active Users', 'New Users', 'Sessions', 'Page Views']],
+    body: rawTimeSeries.value.map(d => [
+      d.date,
+      d.activeUsers,
+      d.newUsers,
+      d.sessions,
+      d.screenPageViews
+    ]),
   })
-
-  // Traffic sources table
-  y += 4
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Traffic Sources', 14, y)
-  y += 6
-  autoTable(doc, {
-    startY: y,
-    head: [['Source', 'Sessions']],
-    body: trafficSources.value.map(t => [t.source, t.sessions]),
-    theme: 'striped',
-    headStyles: { fillColor: primary, textColor: 255 },
-    styles: { fontSize: 8 },
-    margin: { left: 14, right: 14 }
-  })
-  y = doc.lastAutoTable.finalY + 8
-
-  // Device table
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Device Categories', 14, y)
-  y += 6
-  autoTable(doc, {
-    startY: y,
-    head: [['Device', 'Sessions']],
-    body: deviceCategories.value.map(d => [d.device, d.sessions]),
-    theme: 'striped',
-    headStyles: { fillColor: primary, textColor: 255 },
-    styles: { fontSize: 8 },
-    margin: { left: 14, right: 14 }
-  })
-  y = doc.lastAutoTable.finalY + 8
 
   // Top pages table
-  if (y > 240) { doc.addPage(); y = 20 }
-  doc.setFontSize(12)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Top Pages', 14, y)
-  y += 6
-  autoTable(doc, {
-    startY: y,
-    head: [['Page', 'Page Views']],
-    body: topPages.value.map(p => [p.pagePath, p.pageviews]),
-    theme: 'striped',
-    headStyles: { fillColor: primary, textColor: 255 },
-    styles: { fontSize: 8 },
-    margin: { left: 14, right: 14 }
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('Top Pages', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Page', 'Pageviews', 'Avg Engagement', 'Bounce Rate', 'Sessions']],
+    body: rawTopPages.value.map(p => [
+      p.pagePath,
+      p.screenPageViews,
+      formatDuration(p.averageEngagementTime),
+      `${p.bounceRate}%`,
+      p.sessions
+    ]),
   })
 
-  doc.save(`Site_Analytics_${new Date().toISOString().slice(0,10)}.pdf`)
+  // Countries
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('Top Countries', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Country', 'Sessions', 'Active Users', 'New Users', 'Bounce Rate']],
+    body: rawTopCountries.value.map(c => [
+      c.country,
+      c.sessions,
+      c.activeUsers,
+      c.newUsers,
+      `${c.bounceRate}%`
+    ]),
+  })
+
+  // Traffic sources
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('Traffic Sources', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Source', 'Sessions', 'Active Users']],
+    body: rawTrafficSources.value.map(s => [s.sessionSource, s.sessions, s.activeUsers]),
+  })
+
+  // Device categories
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('Device Categories', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Device', 'Sessions', 'Active Users']],
+    body: rawDeviceCategories.value.map(d => [d.deviceCategory, d.sessions, d.activeUsers]),
+  })
+
+  // User types
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('User Types', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Type', 'Sessions', 'Active Users']],
+    body: rawUserTypes.value.map(u => [u.newVsReturning, u.sessions, u.activeUsers]),
+  })
+
+  // Hourly
+  doc.addPage()
+  doc.setFontSize(14)
+  doc.text('Sessions by Hour', margin, 20)
+  doc.autoTable({
+    startY: 25,
+    head: [['Hour', 'Sessions', 'Active Users']],
+    body: rawHourly.value.map(h => [`${h.hour}:00`, h.sessions, h.activeUsers]),
+  })
+
+  doc.save('site-analytics-report.pdf')
+}
+
+// ================= EXPORT EXCEL =================
+function exportExcel() {
+  if (!gaData.value) return
+
+  const wb = XLSX.utils.book_new()
+
+  // Summary sheet
+  const summaryData = [
+    ['Metric', 'Value'],
+    ['Total Users', rawSummary.value.totalUsers],
+    ['New Users', rawSummary.value.newUsers],
+    ['Sessions', rawSummary.value.sessions],
+    ['Page Views', rawSummary.value.screenPageViews],
+    ['Avg Engagement Time', rawSummary.value.averageSessionDuration],
+    ['Bounce Rate', rawSummary.value.bounceRate],
+    ['Engagement Rate', rawSummary.value.engagementRate],
+  ]
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
+  XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary')
+
+  // Time series sheet
+  const timeSeriesData = [
+    ['Date', 'Active Users', 'New Users', 'Sessions', 'Page Views'],
+    ...rawTimeSeries.value.map(d => [d.date, d.activeUsers, d.newUsers, d.sessions, d.screenPageViews])
+  ]
+  const timeSeriesSheet = XLSX.utils.aoa_to_sheet(timeSeriesData)
+  XLSX.utils.book_append_sheet(wb, timeSeriesSheet, 'Daily Traffic')
+
+  // Top pages sheet
+  const pagesData = [
+    ['Page', 'Pageviews', 'Avg Engagement (s)', 'Bounce Rate', 'Sessions'],
+    ...rawTopPages.value.map(p => [p.pagePath, p.screenPageViews, p.averageEngagementTime, p.bounceRate, p.sessions])
+  ]
+  const pagesSheet = XLSX.utils.aoa_to_sheet(pagesData)
+  XLSX.utils.book_append_sheet(wb, pagesSheet, 'Top Pages')
+
+  // Countries sheet
+  const countriesData = [
+    ['Country', 'Sessions', 'Active Users', 'New Users', 'Bounce Rate'],
+    ...rawTopCountries.value.map(c => [c.country, c.sessions, c.activeUsers, c.newUsers, c.bounceRate])
+  ]
+  const countriesSheet = XLSX.utils.aoa_to_sheet(countriesData)
+  XLSX.utils.book_append_sheet(wb, countriesSheet, 'Countries')
+
+  // Sources sheet
+  const sourcesData = [
+    ['Source', 'Sessions', 'Active Users'],
+    ...rawTrafficSources.value.map(s => [s.sessionSource, s.sessions, s.activeUsers])
+  ]
+  const sourcesSheet = XLSX.utils.aoa_to_sheet(sourcesData)
+  XLSX.utils.book_append_sheet(wb, sourcesSheet, 'Traffic Sources')
+
+  // Devices sheet
+  const devicesData = [
+    ['Device', 'Sessions', 'Active Users'],
+    ...rawDeviceCategories.value.map(d => [d.deviceCategory, d.sessions, d.activeUsers])
+  ]
+  const devicesSheet = XLSX.utils.aoa_to_sheet(devicesData)
+  XLSX.utils.book_append_sheet(wb, devicesSheet, 'Devices')
+
+  // User types sheet
+  const userTypesData = [
+    ['Type', 'Sessions', 'Active Users'],
+    ...rawUserTypes.value.map(u => [u.newVsReturning, u.sessions, u.activeUsers])
+  ]
+  const userTypesSheet = XLSX.utils.aoa_to_sheet(userTypesData)
+  XLSX.utils.book_append_sheet(wb, userTypesSheet, 'User Types')
+
+  // Hourly sheet
+  const hourlyData = [
+    ['Hour', 'Sessions', 'Active Users'],
+    ...rawHourly.value.map(h => [`${h.hour}:00`, h.sessions, h.activeUsers])
+  ]
+  const hourlySheet = XLSX.utils.aoa_to_sheet(hourlyData)
+  XLSX.utils.book_append_sheet(wb, hourlySheet, 'Hourly')
+
+  XLSX.writeFile(wb, 'site-analytics-report.xlsx')
 }
 </script>
+
+<style scoped>
+/* No additional styles needed; Tailwind classes handle everything */
+</style>
