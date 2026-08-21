@@ -1,7 +1,5 @@
 // api/ga-data.js
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
-import fs from 'fs';
-import path from 'path';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -12,18 +10,20 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET supported' });
 
     const GA_PROPERTY_ID = process.env.GA_PROPERTY_ID;
-    if (!GA_PROPERTY_ID) {
-        return res.status(500).json({ error: 'Missing GA_PROPERTY_ID environment variable' });
+    const GA_SERVICE_ACCOUNT_B64 = process.env.GA_SERVICE_ACCOUNT_B64;
+
+    if (!GA_PROPERTY_ID || !GA_SERVICE_ACCOUNT_B64) {
+        return res.status(500).json({ error: 'Missing GA_PROPERTY_ID or GA_SERVICE_ACCOUNT_B64 environment variable' });
     }
 
     let serviceAccount;
     try {
-        const filePath = path.join(process.cwd(), 'ga-service-account.json');
-        serviceAccount = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        console.log('✅ Service account loaded from file');
+        // The whole service account JSON is stored as one base64 string, so
+        // there's no PEM newline-escaping to get wrong — decode, then parse.
+        const decoded = Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+        serviceAccount = JSON.parse(decoded);
     } catch (err) {
-        console.error('❌ Failed to read ga-service-account.json:', err.message);
-        return res.status(500).json({ error: 'Failed to load service account credentials' });
+        return res.status(500).json({ error: 'Failed to decode GA_SERVICE_ACCOUNT_B64: ' + err.message });
     }
 
     try {

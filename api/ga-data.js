@@ -1,6 +1,5 @@
+// api/ga-data.js
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
-import fs from 'fs';
-import path from 'path';
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,29 +10,20 @@ export default async function handler(req, res) {
     if (req.method !== 'GET') return res.status(405).json({ error: 'Only GET supported' });
 
     const GA_PROPERTY_ID = process.env.GA_PROPERTY_ID;
-    if (!GA_PROPERTY_ID) {
-        return res.status(500).json({ error: 'Missing GA_PROPERTY_ID environment variable' });
+    const GA_SERVICE_ACCOUNT_B64 = process.env.GA_SERVICE_ACCOUNT_B64;
+
+    if (!GA_PROPERTY_ID || !GA_SERVICE_ACCOUNT_B64) {
+        return res.status(500).json({ error: 'Missing GA_PROPERTY_ID or GA_SERVICE_ACCOUNT_B64 environment variable' });
     }
 
     let serviceAccount;
     try {
-        const filePath = path.join(process.cwd(), 'ga-service-account.json');
-        serviceAccount = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-        console.log('✅ Service account loaded from file');
+        // The whole service account JSON is stored as one base64 string, so
+        // there's no PEM newline-escaping to get wrong — decode, then parse.
+        const decoded = Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
+        serviceAccount = JSON.parse(decoded);
     } catch (err) {
-        const envJson = process.env.GA_SERVICE_ACCOUNT_JSON;
-        if (envJson) {
-            try {
-                serviceAccount = JSON.parse(envJson);
-                console.log('✅ Service account loaded from env var');
-            } catch (parseErr) {
-                console.error('❌ Failed to parse GA_SERVICE_ACCOUNT_JSON:', parseErr.message);
-                return res.status(500).json({ error: 'Invalid service account JSON' });
-            }
-        } else {
-            console.error('❌ No service account credentials found');
-            return res.status(500).json({ error: 'Service account credentials missing' });
-        }
+        return res.status(500).json({ error: 'Failed to decode GA_SERVICE_ACCOUNT_B64: ' + err.message });
     }
 
     try {
@@ -65,7 +55,8 @@ export default async function handler(req, res) {
         const summary = {};
         if (summaryResponse.rows && summaryResponse.rows.length > 0) {
             summaryResponse.rows[0].metricValues.forEach((mv, i) => {
-                summary[summaryResponse.metricHeaders[i].name] = mv.value;
+                const metricName = summaryResponse.metricHeaders[i].name;
+                summary[metricName] = mv.value;
             });
         }
 
@@ -146,6 +137,7 @@ export default async function handler(req, res) {
         }));
 
         console.log('✅ GA data fetched successfully');
+
         res.status(200).json({
             summary,
             timeSeries,
