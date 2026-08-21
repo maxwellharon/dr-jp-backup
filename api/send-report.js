@@ -1,6 +1,6 @@
 // api/send-report.js
 import nodemailer from 'nodemailer';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default async function handler(req, res) {
