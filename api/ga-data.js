@@ -1,5 +1,17 @@
-// api/ga-data.js
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
+
+const round1 = (value) => Math.round((Number(value) || 0) * 10) / 10;
+const roundPercent = (value) => round1(value);
+
+function parseDateRange(query = {}) {
+    const dateFrom = typeof query.dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(query.dateFrom)
+        ? query.dateFrom
+        : '90daysAgo';
+    const dateTo = typeof query.dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(query.dateTo)
+        ? query.dateTo
+        : 'today';
+    return [{ startDate: dateFrom, endDate: dateTo }];
+}
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,10 +30,9 @@ export default async function handler(req, res) {
 
     let serviceAccount;
     try {
-        const decoded = Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
-        serviceAccount = JSON.parse(decoded);
+        serviceAccount = JSON.parse(Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8'));
     } catch (err) {
-        return res.status(500).json({ error: 'Failed to decode GA_SERVICE_ACCOUNT_B64: ' + err.message });
+        return res.status(500).json({ error: `Failed to decode GA_SERVICE_ACCOUNT_B64: ${err.message}` });
     }
 
     try {
@@ -33,207 +44,170 @@ export default async function handler(req, res) {
         });
 
         const property = `properties/${GA_PROPERTY_ID}`;
-        const dateRanges = [{ startDate: '90daysAgo', endDate: 'today' }];
+        const dateRanges = parseDateRange(req.query || {});
 
-        // Helper to run a report and catch errors with context
-        const runReportWithContext = async (name, request) => {
+        const run = async (name, request) => {
             try {
                 const [response] = await client.runReport(request);
                 return response;
             } catch (err) {
-                console.error(`❌ Report [${name}] failed:`, err);
+                console.error(`GA report ${name} failed:`, err);
                 throw new Error(`[${name}] ${err.message}`);
             }
         };
 
-        // Define all report requests
-        const reportRequests = {
+        const requests = {
             summary: {
                 property,
                 dateRanges,
                 metrics: [
-                    { name: 'totalUsers' },
-                    { name: 'newUsers' },
-                    { name: 'sessions' },
-                    { name: 'screenPageViews' },
-                    { name: 'averageSessionDuration' },
-                    { name: 'bounceRate' },
-                    { name: 'engagementRate' },
+                    { name: 'totalUsers' }, { name: 'newUsers' }, { name: 'sessions' },
+                    { name: 'screenPageViews' }, { name: 'averageSessionDuration' },
+                    { name: 'bounceRate' }, { name: 'engagementRate' },
                 ],
             },
             timeSeries: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'date' }],
                 metrics: [
-                    { name: 'activeUsers' },
-                    { name: 'newUsers' },
-                    { name: 'sessions' },
-                    { name: 'screenPageViews' },
-                    { name: 'averageSessionDuration' },
-                    { name: 'bounceRate' },
+                    { name: 'activeUsers' }, { name: 'newUsers' }, { name: 'sessions' },
+                    { name: 'screenPageViews' }, { name: 'averageSessionDuration' }, { name: 'bounceRate' },
                 ],
                 orderBys: [{ dimension: { dimensionName: 'date' } }],
             },
             topPages: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'pagePath' }, { name: 'pageTitle' }],
                 metrics: [
-                    { name: 'screenPageViews' },
-                    { name: 'sessions' },
-                    { name: 'userEngagementDuration' },
-                    { name: 'bounceRate' },
+                    { name: 'screenPageViews' }, { name: 'sessions' },
+                    { name: 'userEngagementDuration' }, { name: 'bounceRate' },
                 ],
                 orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
-                limit: 10,
+                limit: 20,
             },
             topCountries: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'country' }],
                 metrics: [
-                    { name: 'sessions' },
-                    { name: 'activeUsers' },
-                    { name: 'newUsers' },
-                    { name: 'bounceRate' },
+                    { name: 'sessions' }, { name: 'activeUsers' }, { name: 'newUsers' }, { name: 'bounceRate' },
                 ],
                 orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
                 limit: 20,
             },
             trafficSources: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'sessionSource' }],
                 metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
                 orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
-                limit: 10,
+                limit: 15,
             },
             deviceCategories: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'deviceCategory' }],
                 metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
             },
             userTypes: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'newVsReturning' }],
                 metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
             },
             hourly: {
-                property,
-                dateRanges,
+                property, dateRanges,
                 dimensions: [{ name: 'hour' }],
                 metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
                 orderBys: [{ dimension: { dimensionName: 'hour' } }],
             },
         };
 
-        // Run all reports in parallel
         const [summaryResponse, timeSeriesResponse, pagesResponse, countriesResponse,
             trafficResponse, deviceResponse, userTypesResponse, hourlyResponse] = await Promise.all([
-                runReportWithContext('summary', reportRequests.summary),
-                runReportWithContext('timeSeries', reportRequests.timeSeries),
-                runReportWithContext('topPages', reportRequests.topPages),
-                runReportWithContext('topCountries', reportRequests.topCountries),
-                runReportWithContext('trafficSources', reportRequests.trafficSources),
-                runReportWithContext('deviceCategories', reportRequests.deviceCategories),
-                runReportWithContext('userTypes', reportRequests.userTypes),
-                runReportWithContext('hourly', reportRequests.hourly),
+                run('summary', requests.summary),
+                run('timeSeries', requests.timeSeries),
+                run('topPages', requests.topPages),
+                run('topCountries', requests.topCountries),
+                run('trafficSources', requests.trafficSources),
+                run('deviceCategories', requests.deviceCategories),
+                run('userTypes', requests.userTypes),
+                run('hourly', requests.hourly),
             ]);
 
-        // Parse summary
-        const summary = {};
-        if (summaryResponse.rows && summaryResponse.rows.length > 0) {
-            summaryResponse.rows[0].metricValues.forEach((mv, i) => {
-                const metricName = summaryResponse.metricHeaders[i].name;
-                summary[metricName] = mv.value;
-            });
-        }
+        const metricNumber = (row, index) => Number(row?.metricValues?.[index]?.value || 0);
 
-        // Parse time series
-        const timeSeries = (timeSeriesResponse.rows || []).map(row => ({
-            date: row.dimensionValues[0].value,
-            activeUsers: Number(row.metricValues[0].value),
-            newUsers: Number(row.metricValues[1].value),
-            sessions: Number(row.metricValues[2].value),
-            screenPageViews: Number(row.metricValues[3].value),
-            averageSessionDuration: Number(row.metricValues[4].value),
-            bounceRate: Number(row.metricValues[5].value),
+        const summary = {};
+        const summaryHeaders = summaryResponse.metricHeaders || [];
+        const summaryValues = summaryResponse.rows?.[0]?.metricValues || [];
+        summaryValues.forEach((value, index) => {
+            const metric = summaryHeaders[index]?.name;
+            if (!metric) return;
+            const numeric = Number(value.value || 0);
+            summary[metric] = ['bounceRate', 'engagementRate', 'averageSessionDuration'].includes(metric)
+                ? roundPercent(numeric)
+                : Math.round(numeric);
+        });
+
+        const timeSeries = (timeSeriesResponse.rows || []).map((row) => ({
+            date: row.dimensionValues?.[0]?.value || '',
+            activeUsers: Math.round(metricNumber(row, 0)),
+            newUsers: Math.round(metricNumber(row, 1)),
+            sessions: Math.round(metricNumber(row, 2)),
+            screenPageViews: Math.round(metricNumber(row, 3)),
+            averageSessionDuration: round1(metricNumber(row, 4)),
+            bounceRate: roundPercent(metricNumber(row, 5)),
         }));
 
-        // Parse top pages
-        const topPages = (pagesResponse.rows || []).map(row => {
-            const pageviews = Number(row.metricValues[0].value);
-            const userEngagementDuration = Number(row.metricValues[2].value);
-            const avgEngagementTime = pageviews > 0 ? Math.round(userEngagementDuration / pageviews) : 0;
+        const topPages = (pagesResponse.rows || []).map((row) => {
+            const pageviews = Math.round(metricNumber(row, 0));
+            const engagementDuration = metricNumber(row, 2);
             return {
-                pagePath: row.dimensionValues[0].value,
-                pageTitle: row.dimensionValues[1].value,
+                pagePath: row.dimensionValues?.[0]?.value || '/',
+                pageTitle: row.dimensionValues?.[1]?.value || '',
                 screenPageViews: pageviews,
-                sessions: Number(row.metricValues[1].value),
-                averageEngagementTime: avgEngagementTime,
-                bounceRate: Number(row.metricValues[3].value),
+                sessions: Math.round(metricNumber(row, 1)),
+                averageEngagementTime: pageviews > 0 ? round1(engagementDuration / pageviews) : 0,
+                bounceRate: roundPercent(metricNumber(row, 3)),
             };
         });
 
-        // Parse top countries
-        const topCountries = (countriesResponse.rows || []).map(row => ({
-            country: row.dimensionValues[0].value,
-            sessions: Number(row.metricValues[0].value),
-            activeUsers: Number(row.metricValues[1].value),
-            newUsers: Number(row.metricValues[2].value),
-            bounceRate: Number(row.metricValues[3].value),
+        const topCountries = (countriesResponse.rows || []).map((row) => ({
+            country: row.dimensionValues?.[0]?.value || 'Unknown',
+            sessions: Math.round(metricNumber(row, 0)),
+            activeUsers: Math.round(metricNumber(row, 1)),
+            newUsers: Math.round(metricNumber(row, 2)),
+            bounceRate: roundPercent(metricNumber(row, 3)),
         }));
 
-        // Parse traffic sources
-        const trafficSources = (trafficResponse.rows || []).map(row => ({
-            sessionSource: row.dimensionValues[0].value,
-            sessions: Number(row.metricValues[0].value),
-            activeUsers: Number(row.metricValues[1].value),
+        const trafficSources = (trafficResponse.rows || []).map((row) => ({
+            sessionSource: row.dimensionValues?.[0]?.value || '(direct)',
+            sessions: Math.round(metricNumber(row, 0)),
+            activeUsers: Math.round(metricNumber(row, 1)),
         }));
 
-        // Parse device categories
-        const deviceCategories = (deviceResponse.rows || []).map(row => ({
-            deviceCategory: row.dimensionValues[0].value,
-            sessions: Number(row.metricValues[0].value),
-            activeUsers: Number(row.metricValues[1].value),
+        const deviceCategories = (deviceResponse.rows || []).map((row) => ({
+            deviceCategory: row.dimensionValues?.[0]?.value || 'unknown',
+            sessions: Math.round(metricNumber(row, 0)),
+            activeUsers: Math.round(metricNumber(row, 1)),
         }));
 
-        // Parse user types
-        const userTypes = (userTypesResponse.rows || []).map(row => ({
-            newVsReturning: row.dimensionValues[0].value,
-            sessions: Number(row.metricValues[0].value),
-            activeUsers: Number(row.metricValues[1].value),
+        const userTypes = (userTypesResponse.rows || []).map((row) => ({
+            newVsReturning: row.dimensionValues?.[0]?.value || 'unknown',
+            sessions: Math.round(metricNumber(row, 0)),
+            activeUsers: Math.round(metricNumber(row, 1)),
         }));
 
-        // Parse hourly
-        const hourly = (hourlyResponse.rows || []).map(row => ({
-            hour: row.dimensionValues[0].value,
-            sessions: Number(row.metricValues[0].value),
-            activeUsers: Number(row.metricValues[1].value),
+        const hourly = (hourlyResponse.rows || []).map((row) => ({
+            hour: row.dimensionValues?.[0]?.value || '0',
+            sessions: Math.round(metricNumber(row, 0)),
+            activeUsers: Math.round(metricNumber(row, 1)),
         }));
 
-        console.log('✅ GA data fetched successfully');
-
-        res.status(200).json({
-            summary,
-            timeSeries,
-            topPages,
-            topCountries,
-            trafficSources,
-            deviceCategories,
-            userTypes,
-            hourly,
+        return res.status(200).json({
+            generatedAt: new Date().toISOString(),
+            dateRange: dateRanges[0],
+            summary, timeSeries, topPages, topCountries,
+            trafficSources, deviceCategories, userTypes, hourly,
         });
     } catch (error) {
-        console.error('❌ GA API error:', error.message);
-        console.error('Error details:', JSON.stringify(error.details, null, 2));
-        res.status(500).json({
-            error: error.message,
-            code: error.code || null,
-            details: error.details || null,
-        });
+        console.error('GA API error:', error);
+        return res.status(500).json({ error: error.message, code: error.code || null });
     }
 }

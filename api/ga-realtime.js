@@ -1,4 +1,3 @@
-// api/ga-realtime.js
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 
 export default async function handler(req, res) {
@@ -18,10 +17,9 @@ export default async function handler(req, res) {
 
     let serviceAccount;
     try {
-        const decoded = Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8');
-        serviceAccount = JSON.parse(decoded);
+        serviceAccount = JSON.parse(Buffer.from(GA_SERVICE_ACCOUNT_B64, 'base64').toString('utf8'));
     } catch (err) {
-        return res.status(500).json({ error: 'Failed to decode GA_SERVICE_ACCOUNT_B64: ' + err.message });
+        return res.status(500).json({ error: `Failed to decode GA_SERVICE_ACCOUNT_B64: ${err.message}` });
     }
 
     try {
@@ -32,18 +30,19 @@ export default async function handler(req, res) {
             },
         });
 
-        const property = `properties/${GA_PROPERTY_ID}`;
-
-        const [realtimeResponse] = await client.runRealtimeReport({
-            property,
+        const [response] = await client.runRealtimeReport({
+            property: `properties/${GA_PROPERTY_ID}`,
             metrics: [{ name: 'activeUsers' }],
         });
 
-        const activeUsers = Number(realtimeResponse.rows?.[0]?.metricValues?.[0]?.value || 0);
+        const activeUsers = Math.round(Number(response.rows?.[0]?.metricValues?.[0]?.value || 0));
 
-        res.status(200).json({ activeUsers });
+        return res.status(200).json({
+            activeUsers,
+            generatedAt: new Date().toISOString(),
+        });
     } catch (error) {
-        console.error('❌ GA Realtime error:', error.message);
-        res.status(500).json({ error: error.message });
+        console.error('GA realtime error:', error);
+        return res.status(500).json({ error: error.message, code: error.code || null });
     }
 }

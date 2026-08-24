@@ -70,18 +70,18 @@
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <p class="text-xs font-medium text-slate-400 uppercase">Bounce Rate</p>
-          <p class="text-xl font-bold text-slate-800">{{ rawSummary.bounceRate }}%</p>
+          <p class="text-xl font-bold text-slate-800">{{ formatPercent(rawSummary.bounceRate) }}</p>
         </div>
         <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
           <p class="text-xs font-medium text-slate-400 uppercase">Engagement Rate</p>
-          <p class="text-xl font-bold text-slate-800">{{ rawSummary.engagementRate }}%</p>
+          <p class="text-xl font-bold text-slate-800">{{ formatPercent(rawSummary.engagementRate) }}</p>
         </div>
       </div>
 
       <!-- Time Series Chart -->
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
         <h4 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Daily Active Users</h4>
-        <canvas ref="timeSeriesChart" height="200"></canvas>
+        <canvas ref="timeSeriesChartCanvas" height="200"></canvas>
       </div>
 
       <!-- Top Pages Table -->
@@ -100,10 +100,10 @@
           <tbody class="divide-y divide-slate-100">
             <tr v-for="page in rawTopPages" :key="page.pagePath">
               <td class="px-4 py-2 text-sm font-medium text-slate-700">{{ page.pagePath }}</td>
-              <td class="px-4 py-2 text-sm text-slate-600">{{ page.screenPageViews }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ formatNumber(page.screenPageViews) }}</td>
               <td class="px-4 py-2 text-sm text-slate-600">{{ formatDuration(page.averageEngagementTime) }}</td>
-              <td class="px-4 py-2 text-sm text-slate-600">{{ page.bounceRate }}%</td>
-              <td class="px-4 py-2 text-sm text-slate-600">{{ page.sessions }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ formatPercent(page.bounceRate) }}</td>
+              <td class="px-4 py-2 text-sm text-slate-600">{{ formatNumber(page.sessions) }}</td>
             </tr>
           </tbody>
         </table>
@@ -116,7 +116,7 @@
           <ul class="space-y-2">
             <li v-for="c in rawTopCountries" :key="c.country" class="flex justify-between items-center">
               <span class="text-sm text-slate-600">{{ c.country }}</span>
-              <span class="font-semibold text-slate-800">{{ c.sessions }} sessions</span>
+              <span class="font-semibold text-slate-800">{{ formatNumber(c.sessions) }} sessions</span>
             </li>
           </ul>
         </div>
@@ -125,7 +125,7 @@
           <ul class="space-y-2">
             <li v-for="s in rawTrafficSources" :key="s.sessionSource" class="flex justify-between items-center">
               <span class="text-sm text-slate-600">{{ s.sessionSource }}</span>
-              <span class="font-semibold text-slate-800">{{ s.sessions }} sessions</span>
+              <span class="font-semibold text-slate-800">{{ formatNumber(s.sessions) }} sessions</span>
             </li>
           </ul>
         </div>
@@ -138,7 +138,7 @@
           <ul class="space-y-2">
             <li v-for="d in rawDeviceCategories" :key="d.deviceCategory" class="flex justify-between items-center">
               <span class="text-sm text-slate-600 capitalize">{{ d.deviceCategory }}</span>
-              <span class="font-semibold text-slate-800">{{ d.sessions }} sessions</span>
+              <span class="font-semibold text-slate-800">{{ formatNumber(d.sessions) }} sessions</span>
             </li>
           </ul>
         </div>
@@ -147,7 +147,7 @@
           <ul class="space-y-2">
             <li v-for="u in rawUserTypes" :key="u.newVsReturning" class="flex justify-between items-center">
               <span class="text-sm text-slate-600">{{ u.newVsReturning }}</span>
-              <span class="font-semibold text-slate-800">{{ u.sessions }} sessions</span>
+              <span class="font-semibold text-slate-800">{{ formatNumber(u.sessions) }} sessions</span>
             </li>
           </ul>
         </div>
@@ -156,7 +156,7 @@
       <!-- Hourly Breakdown Chart -->
       <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
         <h4 class="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wider text-slate-400">Sessions by Hour</h4>
-        <canvas ref="hourlyChart" height="150"></canvas>
+        <canvas ref="hourlyChartCanvas" height="150"></canvas>
       </div>
     </template>
   </div>
@@ -167,7 +167,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
 import Chart from 'chart.js/auto'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 
 const { gaData, loading, error, refresh } = useGoogleAnalytics()
@@ -190,15 +190,27 @@ const rawHourly = computed(() => gaData.value?.hourly || [])
 
 // Formatting helpers
 function formatNumber(value) {
-  if (!value) return '0'
-  return Number(value).toLocaleString('en-KE')
+  if (value === null || value === undefined || value === '') return '0.0'
+  return Number(value).toLocaleString('en-KE', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1
+  })
 }
+
+function formatPercent(value) {
+  if (value === null || value === undefined || value === '') return '0.0%'
+  return `${Number(value).toFixed(1)}%`
+}
+
 function formatDuration(seconds) {
-  if (!seconds) return '0s'
+  if (seconds === null || seconds === undefined || seconds === '') return '0.0s'
   const sec = Number(seconds)
+  if (!Number.isFinite(sec)) return '0.0s'
   const mins = Math.floor(sec / 60)
-  const remainingSec = Math.round(sec % 60)
-  return `${mins}m ${remainingSec}s`
+  const remainingSec = sec % 60
+  return mins > 0
+    ? `${mins}m ${remainingSec.toFixed(1)}s`
+    : `${remainingSec.toFixed(1)}s`
 }
 function formatDate(dateStr) {
   if (!dateStr) return ''
@@ -264,22 +276,82 @@ onUnmounted(() => {
 async function exportPDF() {
   if (!gaData.value) return
 
-  const doc = new jsPDF()
+  const doc = new jsPDF('p', 'mm', 'a4')
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
   const margin = 14
+  const contentWidth = pageWidth - margin * 2
 
-  // Title
-  doc.setFontSize(20)
-  doc.text('Site Analytics Report', margin, 20)
-  doc.setFontSize(10)
-  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 28)
+  const primary = [30, 41, 59]
+  const accent = [79, 70, 229]
+  const muted = [100, 116, 139]
+  const light = [248, 250, 252]
 
-  // Summary metrics
-  doc.setFontSize(14)
-  doc.text('Summary', margin, 40)
-  doc.autoTable({
-    startY: 45,
+  const addHeader = () => {
+    doc.setFillColor(...primary)
+    doc.rect(0, 0, pageWidth, 22, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(15)
+    doc.text('DR. JP OGALO CLINIC', margin, 9)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.text('Site Analytics Report', margin, 15)
+    doc.text(
+      new Date().toLocaleString('en-KE', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: 'Africa/Nairobi'
+      }),
+      pageWidth - margin,
+      15,
+      { align: 'right' }
+    )
+  }
+
+  const addFooter = () => {
+    const pageNumber = doc.getNumberOfPages()
+    doc.setDrawColor(226, 232, 240)
+    doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...muted)
+    doc.text('Generated from Google Analytics 4', margin, pageHeight - 5)
+    doc.text(`Page ${pageNumber}`, pageWidth - margin, pageHeight - 5, { align: 'right' })
+  }
+
+  const addSectionTitle = (title, y) => {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(...primary)
+    doc.text(title, margin, y)
+    doc.setDrawColor(...accent)
+    doc.setLineWidth(0.7)
+    doc.line(margin, y + 2, pageWidth - margin, y + 2)
+    return y + 8
+  }
+
+  const addChartImage = (canvas, title) => {
+    if (!canvas) return
+    let y = 0
+    const image = canvas.toDataURL('image/png', 1.0)
+    doc.addPage()
+    addHeader()
+    y = addSectionTitle(title, 31)
+    const ratio = canvas.width / canvas.height || 2
+    const displayWidth = contentWidth
+    const displayHeight = Math.min(displayWidth / ratio, 80)
+    doc.addImage(image, 'PNG', margin, y, displayWidth, displayHeight)
+    addFooter()
+  }
+
+  addHeader()
+
+  let y = 31
+  y = addSectionTitle('Executive Summary', y)
+
+  autoTable(doc, {
+    startY: y,
     head: [['Metric', 'Value']],
     body: [
       ['Total Users', formatNumber(rawSummary.value.totalUsers)],
@@ -287,98 +359,161 @@ async function exportPDF() {
       ['Sessions', formatNumber(rawSummary.value.sessions)],
       ['Page Views', formatNumber(rawSummary.value.screenPageViews)],
       ['Avg Engagement Time', formatDuration(rawSummary.value.averageSessionDuration)],
-      ['Bounce Rate', `${rawSummary.value.bounceRate}%`],
-      ['Engagement Rate', `${rawSummary.value.engagementRate}%`],
+      ['Bounce Rate', formatPercent(rawSummary.value.bounceRate)],
+      ['Engagement Rate', formatPercent(rawSummary.value.engagementRate)]
     ],
+    theme: 'grid',
+    headStyles: {
+      fillColor: primary,
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    alternateRowStyles: {
+      fillColor: light
+    },
+    styles: {
+      fontSize: 9,
+      cellPadding: 3,
+      textColor: primary,
+      overflow: 'linebreak'
+    },
+    margin: { left: margin, right: margin }
   })
 
-  // Time series table
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('Daily Traffic', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Date', 'Active Users', 'New Users', 'Sessions', 'Page Views']],
-    body: rawTimeSeries.value.map(d => [
-      d.date,
-      d.activeUsers,
-      d.newUsers,
-      d.sessions,
-      d.screenPageViews
-    ]),
-  })
+  addChartImage(timeSeriesChartCanvas.value, 'Daily Active & New Users')
+  addChartImage(hourlyChartCanvas.value, 'Sessions by Hour')
 
-  // Top pages table
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('Top Pages', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Page', 'Pageviews', 'Avg Engagement', 'Bounce Rate', 'Sessions']],
-    body: rawTopPages.value.map(p => [
-      p.pagePath,
-      p.screenPageViews,
+  const addTablePage = (title, head, body, columnStyles = {}) => {
+    doc.addPage()
+    addHeader()
+    let sectionY = addSectionTitle(title, 31)
+
+    autoTable(doc, {
+      startY: sectionY,
+      head: [head],
+      body,
+      theme: 'striped',
+      headStyles: {
+        fillColor: primary,
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 8
+      },
+      alternateRowStyles: {
+        fillColor: light
+      },
+      styles: {
+        fontSize: 8,
+        cellPadding: 2.5,
+        valign: 'middle',
+        overflow: 'linebreak',
+        textColor: primary
+      },
+      columnStyles,
+      margin: {
+        left: margin,
+        right: margin,
+        top: 28,
+        bottom: 16
+      },
+      didDrawPage: () => {
+        addHeader()
+      }
+    })
+
+    addFooter()
+  }
+
+  addTablePage(
+    'Daily Traffic',
+    ['Date', 'Active Users', 'New Users', 'Sessions', 'Page Views'],
+    rawTimeSeries.value.map(d => [
+      formatDate(d.date),
+      formatNumber(d.activeUsers),
+      formatNumber(d.newUsers),
+      formatNumber(d.sessions),
+      formatNumber(d.screenPageViews)
+    ])
+  )
+
+  addTablePage(
+    'Top Pages',
+    ['Page', 'Pageviews', 'Avg Engagement', 'Bounce Rate', 'Sessions'],
+    rawTopPages.value.map(p => [
+      p.pagePath || '—',
+      formatNumber(p.screenPageViews),
       formatDuration(p.averageEngagementTime),
-      `${p.bounceRate}%`,
-      p.sessions
+      formatPercent(p.bounceRate),
+      formatNumber(p.sessions)
     ]),
-  })
+    {
+      0: { cellWidth: 76 },
+      1: { cellWidth: 22 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 25 },
+      4: { cellWidth: 20 }
+    }
+  )
 
-  // Countries
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('Top Countries', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Country', 'Sessions', 'Active Users', 'New Users', 'Bounce Rate']],
-    body: rawTopCountries.value.map(c => [
-      c.country,
-      c.sessions,
-      c.activeUsers,
-      c.newUsers,
-      `${c.bounceRate}%`
+  addTablePage(
+    'Top Countries',
+    ['Country', 'Sessions', 'Active Users', 'New Users', 'Bounce Rate'],
+    rawTopCountries.value.map(c => [
+      c.country || 'Unknown',
+      formatNumber(c.sessions),
+      formatNumber(c.activeUsers),
+      formatNumber(c.newUsers),
+      formatPercent(c.bounceRate)
+    ])
+  )
+
+  addTablePage(
+    'Traffic Sources',
+    ['Source', 'Sessions', 'Active Users'],
+    rawTrafficSources.value.map(s => [
+      s.sessionSource || 'Unknown',
+      formatNumber(s.sessions),
+      formatNumber(s.activeUsers)
     ]),
-  })
+    {
+      0: { cellWidth: 100 }
+    }
+  )
 
-  // Traffic sources
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('Traffic Sources', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Source', 'Sessions', 'Active Users']],
-    body: rawTrafficSources.value.map(s => [s.sessionSource, s.sessions, s.activeUsers]),
-  })
+  addTablePage(
+    'Device Categories',
+    ['Device', 'Sessions', 'Active Users'],
+    rawDeviceCategories.value.map(d => [
+      d.deviceCategory || 'Unknown',
+      formatNumber(d.sessions),
+      formatNumber(d.activeUsers)
+    ])
+  )
 
-  // Device categories
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('Device Categories', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Device', 'Sessions', 'Active Users']],
-    body: rawDeviceCategories.value.map(d => [d.deviceCategory, d.sessions, d.activeUsers]),
-  })
+  addTablePage(
+    'User Types',
+    ['Type', 'Sessions', 'Active Users'],
+    rawUserTypes.value.map(u => [
+      u.newVsReturning || 'Unknown',
+      formatNumber(u.sessions),
+      formatNumber(u.activeUsers)
+    ])
+  )
 
-  // User types
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('User Types', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Type', 'Sessions', 'Active Users']],
-    body: rawUserTypes.value.map(u => [u.newVsReturning, u.sessions, u.activeUsers]),
-  })
+  addTablePage(
+    'Sessions by Hour',
+    ['Hour', 'Sessions', 'Active Users'],
+    rawHourly.value.map(h => [
+      `${String(h.hour).padStart(2, '0')}:00`,
+      formatNumber(h.sessions),
+      formatNumber(h.activeUsers)
+    ])
+  )
 
-  // Hourly
-  doc.addPage()
-  doc.setFontSize(14)
-  doc.text('Sessions by Hour', margin, 20)
-  doc.autoTable({
-    startY: 25,
-    head: [['Hour', 'Sessions', 'Active Users']],
-    body: rawHourly.value.map(h => [`${h.hour}:00`, h.sessions, h.activeUsers]),
-  })
+  for (let page = 1; page <= doc.getNumberOfPages(); page++) {
+    doc.setPage(page)
+    if (page !== 1) addFooter()
+  }
 
   doc.save('site-analytics-report.pdf')
 }
@@ -397,8 +532,8 @@ function exportExcel() {
     ['Sessions', rawSummary.value.sessions],
     ['Page Views', rawSummary.value.screenPageViews],
     ['Avg Engagement Time', rawSummary.value.averageSessionDuration],
-    ['Bounce Rate', rawSummary.value.bounceRate],
-    ['Engagement Rate', rawSummary.value.engagementRate],
+    ['Bounce Rate', Number(rawSummary.value.bounceRate || 0).toFixed(1)],
+    ['Engagement Rate', Number(rawSummary.value.engagementRate || 0).toFixed(1)],
   ]
   const summarySheet = XLSX.utils.aoa_to_sheet(summaryData)
   XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary')
@@ -414,7 +549,7 @@ function exportExcel() {
   // Top pages sheet
   const pagesData = [
     ['Page', 'Pageviews', 'Avg Engagement (s)', 'Bounce Rate', 'Sessions'],
-    ...rawTopPages.value.map(p => [p.pagePath, p.screenPageViews, p.averageEngagementTime, p.bounceRate, p.sessions])
+    ...rawTopPages.value.map(p => [p.pagePath, p.screenPageViews, p.averageEngagementTime, Number(p.bounceRate || 0).toFixed(1), p.sessions])
   ]
   const pagesSheet = XLSX.utils.aoa_to_sheet(pagesData)
   XLSX.utils.book_append_sheet(wb, pagesSheet, 'Top Pages')
@@ -422,7 +557,7 @@ function exportExcel() {
   // Countries sheet
   const countriesData = [
     ['Country', 'Sessions', 'Active Users', 'New Users', 'Bounce Rate'],
-    ...rawTopCountries.value.map(c => [c.country, c.sessions, c.activeUsers, c.newUsers, c.bounceRate])
+    ...rawTopCountries.value.map(c => [c.country, c.sessions, c.activeUsers, c.newUsers, Number(c.bounceRate || 0).toFixed(1)])
   ]
   const countriesSheet = XLSX.utils.aoa_to_sheet(countriesData)
   XLSX.utils.book_append_sheet(wb, countriesSheet, 'Countries')

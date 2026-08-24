@@ -5,39 +5,76 @@ export function useReportGeneration() {
   const { patients } = useWixData()
 
   // Apply filters and return mapped records
-  const generateReportData = (filters) => {
-    let data = patients.value || []
+  const generateReportData = (filters = {}) => {
+    let data = Array.isArray(patients.value) ? [...patients.value] : []
 
     if (filters.dateFrom) {
       const from = new Date(filters.dateFrom)
-      data = data.filter(p => p.createdDate && new Date(p.createdDate) >= from)
+      from.setHours(0, 0, 0, 0)
+
+      data = data.filter(p => {
+        if (!p.createdDate) return false
+        const created = new Date(p.createdDate)
+        return !Number.isNaN(created.getTime()) && created >= from
+      })
     }
+
     if (filters.dateTo) {
       const to = new Date(filters.dateTo)
       to.setHours(23, 59, 59, 999)
-      data = data.filter(p => p.createdDate && new Date(p.createdDate) <= to)
+
+      data = data.filter(p => {
+        if (!p.createdDate) return false
+        const created = new Date(p.createdDate)
+        return !Number.isNaN(created.getTime()) && created <= to
+      })
     }
-    if (filters.ageMin !== '' && filters.ageMin !== null) {
+
+    if (filters.ageMin !== '' && filters.ageMin !== null && filters.ageMin !== undefined) {
       const min = Number(filters.ageMin)
-      data = data.filter(p => Number(p.age) >= min)
+
+      if (!Number.isNaN(min)) {
+        data = data.filter(p => {
+          const age = Number(p.age)
+          return !Number.isNaN(age) && age >= min
+        })
+      }
     }
-    if (filters.ageMax !== '' && filters.ageMax !== null) {
+
+    if (filters.ageMax !== '' && filters.ageMax !== null && filters.ageMax !== undefined) {
       const max = Number(filters.ageMax)
-      data = data.filter(p => Number(p.age) <= max)
+
+      if (!Number.isNaN(max)) {
+        data = data.filter(p => {
+          const age = Number(p.age)
+          return !Number.isNaN(age) && age <= max
+        })
+      }
     }
+
     if (filters.procedure) {
-      data = data.filter(p => p.selectedProcedure === filters.procedure)
+      data = data.filter(
+        p => String(p.selectedProcedure || '').trim() === String(filters.procedure).trim()
+      )
     }
+
     if (filters.country) {
-      data = data.filter(p => p.Country === filters.country)
+      data = data.filter(
+        p => String(p.Country || '').trim() === String(filters.country).trim()
+      )
     }
+
     if (filters.nonSurgical === 'yes') {
-      data = data.filter(p => p.isNonSurgical)
+      data = data.filter(p => p.isNonSurgical === true)
     } else if (filters.nonSurgical === 'no') {
-      data = data.filter(p => !p.isNonSurgical)
+      data = data.filter(p => p.isNonSurgical !== true)
     }
+
     if (filters.bmiHighRisk) {
-      data = data.filter(p => Number(p.bmi) >= 30)
+      data = data.filter(p => {
+        const bmi = Number(p.bmi)
+        return !Number.isNaN(bmi) && bmi >= 30
+      })
     }
 
     return data.map(p => ({
@@ -48,8 +85,8 @@ export function useReportGeneration() {
       age: p.age || '',
       country: p.Country || '',
       procedure: p.selectedProcedure || '—',
-      price: p.calculatedPrice || 0,
-      isNonSurgical: p.isNonSurgical,
+      price: Number(p.calculatedPrice) || 0,
+      isNonSurgical: p.isNonSurgical === true,
       bmi: p.bmi || '',
       weight: p.weight || '',
       height: p.height || '',
@@ -58,85 +95,221 @@ export function useReportGeneration() {
     }))
   }
 
-  // Generate extremely detailed AI insights from a data array
-  const generateDetailedInsights = (data) => {
-    if (!data.length) return null
+  // Generate detailed AI insights from a data array
+  const generateDetailedInsights = (data = []) => {
+    if (!Array.isArray(data) || !data.length) return null
 
     const total = data.length
-    const ages = data.map(p => Number(p.age)).filter(a => a > 0 && a < 120)
-    const avgAge = ages.length ? Math.round(ages.reduce((s, v) => s + v, 0) / ages.length) : 0
 
-    const nonSurgCount = data.filter(p => p.isNonSurgical).length
-    const nonSurgPercent = total ? Math.round((nonSurgCount / total) * 100) : 0
+    const ages = data
+      .map(p => Number(p.age))
+      .filter(age => Number.isFinite(age) && age > 0 && age < 120)
 
-    const totalValue = data.reduce((s, p) => s + Number(p.price || 0), 0)
-    const avgValue = total ? Math.round(totalValue / total) : 0
+    const avgAge = ages.length
+      ? Number(
+        (
+          ages.reduce((sum, value) => sum + value, 0) / ages.length
+        ).toFixed(1)
+      )
+      : 0
 
-    const bmis = data.map(p => Number(p.bmi)).filter(b => b > 10 && b < 90)
-    const avgBmi = bmis.length ? (bmis.reduce((s, v) => s + v, 0) / bmis.length).toFixed(1) : '0.0'
-    const highBmiCount = data.filter(p => Number(p.bmi) >= 30 && Number(p.bmi) <= 90).length
+    const nonSurgCount = data.filter(p => p.isNonSurgical === true).length
 
-    const pastSurgCount = data.filter(p => {
-      const val = String(p.pastSurgeries || '').toLowerCase()
-      return val.includes('yes') || (val.length > 0 && !val.includes('no'))
+    const nonSurgPercent = total
+      ? Number(((nonSurgCount / total) * 100).toFixed(1))
+      : 0
+
+    const totalValue = data.reduce((sum, p) => {
+      const price = Number(p.price)
+      return sum + (Number.isFinite(price) ? price : 0)
+    }, 0)
+
+    const avgValue = total
+      ? Number((totalValue / total).toFixed(1))
+      : 0
+
+    const bmis = data
+      .map(p => Number(p.bmi))
+      .filter(bmi => Number.isFinite(bmi) && bmi > 10 && bmi < 90)
+
+    const avgBmi = bmis.length
+      ? Number(
+        (
+          bmis.reduce((sum, value) => sum + value, 0) / bmis.length
+        ).toFixed(1)
+      )
+      : 0
+
+    const highBmiCount = data.filter(p => {
+      const bmi = Number(p.bmi)
+      return Number.isFinite(bmi) && bmi >= 30 && bmi <= 90
     }).length
 
-    // Top 5 procedures
+    const pastSurgCount = data.filter(p => {
+      const value = String(p.pastSurgeries || '').trim().toLowerCase()
+
+      if (!value) return false
+      if (value === 'no') return false
+      if (value === 'false') return false
+      if (value === 'none') return false
+      if (value === 'no previous surgery') return false
+
+      return (
+        value.includes('yes') ||
+        value.includes('surgery') ||
+        value.includes('surgeries') ||
+        value.length > 0
+      )
+    }).length
+
+    // Procedure distribution
     const procMap = new Map()
-    data.forEach(p => procMap.set(p.procedure, (procMap.get(p.procedure) || 0) + 1))
-    const topProcs = [...procMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+    data.forEach(p => {
+      const procedure = p.procedure || 'Unknown'
+
+      procMap.set(
+        procedure,
+        (procMap.get(procedure) || 0) + 1
+      )
+    })
+
+    const topProcs = [...procMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+
     const mostRequested = topProcs[0]?.[0] || 'N/A'
     const mostRequestedCount = topProcs[0]?.[1] || 0
 
     // Country distribution
     const countryMap = new Map()
-    data.forEach(p => countryMap.set(p.country, (countryMap.get(p.country) || 0) + 1))
-    const topCountries = [...countryMap.entries()].sort((a, b) => b[1] - a[1])
 
-    // Age distribution (brackets)
-    const ageGroups = { '18-25': 0, '26-35': 0, '36-50': 0, '51+': 0 }
+    data.forEach(p => {
+      const country = p.country || 'Unknown'
+
+      countryMap.set(
+        country,
+        (countryMap.get(country) || 0) + 1
+      )
+    })
+
+    const topCountries = [...countryMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+
+    // Age distribution
+    const ageGroups = {
+      '18-25': 0,
+      '26-35': 0,
+      '36-50': 0,
+      '51+': 0
+    }
+
     ages.forEach(age => {
-      if (age >= 18 && age <= 25) ageGroups['18-25']++
-      else if (age >= 26 && age <= 35) ageGroups['26-35']++
-      else if (age >= 36 && age <= 50) ageGroups['36-50']++
-      else if (age > 50) ageGroups['51+']++
+      if (age >= 18 && age <= 25) {
+        ageGroups['18-25']++
+      } else if (age >= 26 && age <= 35) {
+        ageGroups['26-35']++
+      } else if (age >= 36 && age <= 50) {
+        ageGroups['36-50']++
+      } else if (age > 50) {
+        ageGroups['51+']++
+      }
     })
 
     // Monthly registration trend
     const monthly = new Map()
-    data.forEach(p => {
-      if (p.createdDate) {
-        const d = new Date(p.createdDate)
-        if (!isNaN(d.getTime())) {
-          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-          monthly.set(key, (monthly.get(key) || 0) + 1)
-        }
-      }
-    })
-    const monthlyTrend = [...monthly.entries()].sort()
 
-    // Average weight & height
-    const weights = data.map(p => Number(p.weight)).filter(w => w > 0 && w < 500)
-    const avgWeight = weights.length ? Math.round(weights.reduce((s, v) => s + v, 0) / weights.length) : 0
-    const heights = data.map(p => Number(p.height)).filter(h => h > 0 && h < 300)
-    const avgHeight = heights.length ? Math.round(heights.reduce((s, v) => s + v, 0) / heights.length) : 0
+    data.forEach(p => {
+      if (!p.createdDate) return
+
+      const date = new Date(p.createdDate)
+
+      if (Number.isNaN(date.getTime())) return
+
+      const key = `${date.getFullYear()}-${String(
+        date.getMonth() + 1
+      ).padStart(2, '0')}`
+
+      monthly.set(
+        key,
+        (monthly.get(key) || 0) + 1
+      )
+    })
+
+    const monthlyTrend = [...monthly.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+
+    // Weight
+    const weights = data
+      .map(p => Number(p.weight))
+      .filter(weight => Number.isFinite(weight) && weight > 0 && weight < 500)
+
+    const avgWeight = weights.length
+      ? Number(
+        (
+          weights.reduce((sum, value) => sum + value, 0) / weights.length
+        ).toFixed(1)
+      )
+      : 0
+
+    // Height
+    const heights = data
+      .map(p => Number(p.height))
+      .filter(height => Number.isFinite(height) && height > 0 && height < 300)
+
+    const avgHeight = heights.length
+      ? Number(
+        (
+          heights.reduce((sum, value) => sum + value, 0) / heights.length
+        ).toFixed(1)
+      )
+      : 0
+
+    // Additional useful intelligence
+    const ageGroupEntries = Object.entries(ageGroups)
+      .filter(([, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+
+    const dominantAgeGroup = ageGroupEntries[0]?.[0] || 'N/A'
+    const dominantAgeGroupCount = ageGroupEntries[0]?.[1] || 0
+
+    const dominantCountry = topCountries[0]?.[0] || 'N/A'
+    const dominantCountryCount = topCountries[0]?.[1] || 0
+
+    const averagePriceFormatted = Number(avgValue.toFixed(1))
+    const totalValueFormatted = Number(totalValue.toFixed(1))
 
     return {
       total,
+
       avgAge,
+
       nonSurgCount,
       nonSurgPercent,
-      totalValue,
-      avgValue,
+
+      totalValue: totalValueFormatted,
+      avgValue: averagePriceFormatted,
+
       avgBmi,
       highBmiCount,
+
       pastSurgCount,
+
       mostRequested,
       mostRequestedCount,
+
       topProcedures: topProcs,
+
       countryDistribution: topCountries,
+      dominantCountry,
+      dominantCountryCount,
+
       ageGroups,
+      dominantAgeGroup,
+      dominantAgeGroupCount,
+
       monthlyTrend,
+
       avgWeight,
       avgHeight
     }
@@ -144,18 +317,30 @@ export function useReportGeneration() {
 
   const getUniqueProcedures = () => {
     const set = new Set()
+
       ; (patients.value || []).forEach(p => {
-        if (p.selectedProcedure) set.add(p.selectedProcedure)
+        if (p.selectedProcedure) {
+          set.add(String(p.selectedProcedure).trim())
+        }
       })
-    return [...set].sort()
+
+    return [...set]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
   }
 
   const getUniqueCountries = () => {
     const set = new Set()
+
       ; (patients.value || []).forEach(p => {
-        if (p.Country) set.add(p.Country)
+        if (p.Country) {
+          set.add(String(p.Country).trim())
+        }
       })
-    return [...set].sort()
+
+    return [...set]
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b))
   }
 
   return {

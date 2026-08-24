@@ -1,18 +1,35 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeApp } from 'firebase/app'
+import {
+  getAuth,
+  setPersistence,
+  browserLocalPersistence
+} from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCE3QDTlvp51E9UbfdxlwoAVO_uqxATvUs",   // ← Paste the exact one from test.html
-  authDomain: "dr-ogalo-dashboard.firebaseapp.com",
-  projectId: "dr-ogalo-dashboard",
-  storageBucket: "dr-ogalo-dashboard.firebasestorage.app",
-  messagingSenderId: "991201907262",
-  appId: "1:991201907262:web:3d2b0a2e5f4a01da7bf76f"
-};
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
+}
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+const app = initializeApp(firebaseConfig)
 
-console.log("✅ Firebase initialized");
+export const auth = getAuth(app)
+
+export const db = getFirestore(app)
+
+/*
+ * Keep the authenticated session across:
+ * - page reloads
+ * - browser restarts
+ *
+ * The promise is exported so authentication-dependent
+ * code can wait until persistence has been initialized.
+ */
+export const authPersistenceReady = setPersistence(
+  auth,
+  browserLocalPersistence
+)

@@ -1,713 +1,2473 @@
 <template>
-  <div class="min-h-screen bg-slate-50/50">
+  <div class="min-h-screen bg-slate-50">
     <NavBar />
-    <div class="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
-      <!-- Header -->
-      <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 class="text-2xl md:text-3xl font-bold text-slate-900 flex items-center gap-2">
-            <i class="fas fa-cog text-indigo-600"></i> Automation Settings
-          </h1>
-          <p class="text-slate-500 text-sm mt-1">Configure automated report generation and email delivery.</p>
-        </div>
-        <button
-          @click="sendNow"
-          :disabled="sendingNow"
-          class="bg-indigo-600 text-white px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 hover:bg-indigo-700 transition shadow-sm text-sm disabled:bg-indigo-400 disabled:cursor-not-allowed"
-        >
-          <i class="fas fa-paper-plane"></i>
-          {{ sendingNow ? 'Sending...' : 'Send Report Now' }}
-        </button>
-      </div>
 
-      <!-- Active Automations -->
-      <div v-if="activeAutomations.length > 0" class="space-y-3">
-        <h2 class="text-lg font-bold text-slate-900">⚡ Active Automations</h2>
-        <div v-for="auto in activeAutomations" :key="auto.id" class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <span class="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
-            <div>
-              <p class="font-semibold text-emerald-800 text-sm">{{ auto.reportType }} - {{ auto.frequency }}</p>
-              <p class="text-xs text-emerald-600">Started {{ formatDate(auto.activatedAt?.toDate()) }}</p>
+    <main class="max-w-[1500px] mx-auto px-4 py-6 md:px-6 lg:px-8 lg:py-8">
+      <!-- PAGE HEADER -->
+      <section class="relative overflow-hidden rounded-[28px] bg-slate-950 shadow-xl">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.28),transparent_38%)]"></div>
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.12),transparent_30%)]"></div>
+
+        <div class="relative px-6 py-7 md:px-8 md:py-9">
+          <div class="flex flex-col gap-7 xl:flex-row xl:items-end xl:justify-between">
+            <div class="max-w-3xl">
+              <div class="flex items-center gap-3">
+                <div
+                  class="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/10 backdrop-blur"
+                >
+                  <i class="fas fa-sliders-h text-indigo-300"></i>
+                </div>
+
+                <div>
+                  <p
+                    class="text-[11px] font-bold uppercase tracking-[0.24em] text-indigo-300"
+                  >
+                    Administration
+                  </p>
+
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    Reporting & automation control
+                  </p>
+                </div>
+              </div>
+
+              <h1
+                class="mt-5 text-3xl font-black tracking-tight text-white md:text-4xl"
+              >
+                Automation & Reporting
+              </h1>
+
+              <p class="mt-3 max-w-2xl text-sm leading-6 text-slate-300 md:text-base">
+                Configure intelligent reports, manage recipients, schedule
+                delivery and review the full reporting activity trail from one
+                place.
+              </p>
+
+              <div class="mt-5 flex flex-wrap gap-2">
+                <span
+                  class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                  Saved per operator
+                </span>
+
+                <span
+                  class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300"
+                >
+                  <i class="fas fa-file-chart-line text-indigo-300"></i>
+                  PDF reporting
+                </span>
+
+                <span
+                  class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-300"
+                >
+                  <i class="fas fa-clock text-cyan-300"></i>
+                  Scheduled delivery
+                </span>
+              </div>
+            </div>
+
+            <div class="w-full xl:w-auto">
+              <button
+                type="button"
+                @click="sendNow"
+                :disabled="sending"
+                class="group flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-500 px-5 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-indigo-950/30 transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50 xl:min-w-[190px]"
+              >
+                <span
+                  class="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10"
+                >
+                  <i
+                    class="fas"
+                    :class="sending ? 'fa-circle-notch fa-spin' : 'fa-paper-plane'"
+                  ></i>
+                </span>
+
+                <span>
+                  {{ sending ? 'Sending report...' : 'Send report now' }}
+                </span>
+
+                <i
+                  v-if="!sending"
+                  class="fas fa-arrow-right text-indigo-200 transition group-hover:translate-x-0.5"
+                ></i>
+              </button>
             </div>
           </div>
-          <button @click="handleCancelAutomation(auto.id)" class="text-red-500 hover:text-red-700 text-sm font-semibold">
-            <i class="fas fa-times-circle mr-1"></i> Cancel
-          </button>
         </div>
-      </div>
+      </section>
 
-      <!-- Wizard Container -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="flex items-center justify-between p-4 border-b border-slate-100 bg-slate-50">
-          <div v-for="(step, idx) in steps" :key="idx" class="flex items-center gap-2" :class="{ 'opacity-60': currentStep < idx }">
-            <div class="h-8 w-8 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300" :class="currentStep === idx ? 'bg-indigo-600 text-white scale-110' : currentStep > idx ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-600'">
-              <i v-if="currentStep > idx" class="fas fa-check"></i>
-              <span v-else>{{ idx + 1 }}</span>
-            </div>
-            <span class="hidden md:inline text-xs font-semibold text-slate-600">{{ step.title }}</span>
+      <!-- STATUS STRIP -->
+      <section class="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="stat-card">
+          <div class="stat-icon bg-indigo-50 text-indigo-600">
+            <i class="fas fa-layer-group"></i>
+          </div>
+
+          <div class="min-w-0">
+            <p class="stat-label">Report scope</p>
+            <p class="stat-value capitalize">
+              {{ scopeLabel }}
+            </p>
           </div>
         </div>
 
-        <div class="p-6 md:p-8">
-          <Transition name="slide-fade" mode="out-in">
-            <!-- Step 0: Data Selection -->
-            <div v-if="currentStep === 0" key="step0" class="space-y-6">
-              <h2 class="text-xl font-bold text-slate-900">📊 What data should be included?</h2>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button @click="form.dataType = 'patient'; currentStep++" class="p-6 rounded-2xl border-2 transition-all hover:shadow-lg" :class="form.dataType === 'patient' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
-                  <i class="fas fa-user-injured text-3xl text-indigo-600 mb-3"></i>
-                  <h3 class="font-bold">Patient Only</h3>
-                  <p class="text-xs text-slate-500 mt-1">Clinical data and registrations</p>
-                </button>
-                <button @click="form.dataType = 'web'; currentStep++" class="p-6 rounded-2xl border-2 transition-all hover:shadow-lg" :class="form.dataType === 'web' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
-                  <i class="fas fa-globe text-3xl text-emerald-600 mb-3"></i>
-                  <h3 class="font-bold">Web Only</h3>
-                  <p class="text-xs text-slate-500 mt-1">Google Analytics site data</p>
-                </button>
-                <button @click="form.dataType = 'both'; currentStep++" class="p-6 rounded-2xl border-2 transition-all hover:shadow-lg" :class="form.dataType === 'both' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
-                  <i class="fas fa-layer-group text-3xl text-purple-600 mb-3"></i>
-                  <h3 class="font-bold">Both</h3>
-                  <p class="text-xs text-slate-500 mt-1">Patient + Web combined</p>
+        <div class="stat-card">
+          <div class="stat-icon bg-cyan-50 text-cyan-600">
+            <i class="fas fa-users"></i>
+          </div>
+
+          <div class="min-w-0">
+            <p class="stat-label">Recipients</p>
+            <p class="stat-value">
+              {{ form.recipients.length }}
+            </p>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div
+            class="stat-icon"
+            :class="
+              settings?.activatedAt
+                ? 'bg-emerald-50 text-emerald-600'
+                : 'bg-slate-100 text-slate-500'
+            "
+          >
+            <i class="fas fa-calendar-check"></i>
+          </div>
+
+          <div class="min-w-0">
+            <p class="stat-label">Automation</p>
+            <p class="stat-value">
+              {{ settings?.activatedAt ? 'Active' : 'Inactive' }}
+            </p>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-icon bg-amber-50 text-amber-600">
+            <i class="fas fa-envelope-open-text"></i>
+          </div>
+
+          <div class="min-w-0">
+            <p class="stat-label">Email activity</p>
+            <p class="stat-value">
+              {{ emailLogs.length }}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- MAIN WORKSPACE -->
+      <section class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <!-- LEFT -->
+        <div class="min-w-0">
+          <section
+            class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"
+          >
+            <!-- WORKFLOW HEADER -->
+            <div
+              class="border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/70 px-5 py-5 md:px-7"
+            >
+              <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="section-kicker">REPORT BUILDER</span>
+
+                    <span
+                      class="rounded-full bg-indigo-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600"
+                    >
+                      Step {{ currentStep + 1 }} / 4
+                    </span>
+
+                    <span
+                      v-if="draftSaveState === 'saving'"
+                      class="inline-flex items-center gap-1.5 rounded-full bg-slate-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500"
+                    >
+                      <i class="fas fa-circle-notch fa-spin"></i>
+                      Saving…
+                    </span>
+
+                    <span
+                      v-else-if="draftSaveState === 'saved'"
+                      class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600"
+                    >
+                      <i class="fas fa-check"></i>
+                      Saved
+                    </span>
+
+                    <span
+                      v-else-if="draftSaveState === 'error'"
+                      class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-600"
+                      title="Your last change could not be saved. Check your connection."
+                    >
+                      <i class="fas fa-triangle-exclamation"></i>
+                      Not saved
+                    </span>
+                  </div>
+
+                  <h2 class="mt-2 text-xl font-black tracking-tight text-slate-900">
+                    Configure your reporting workflow
+                  </h2>
+
+                  <p class="mt-1 text-sm text-slate-500">
+                    Build once, save the configuration and reuse it whenever
+                    you need the report.
+                  </p>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <div
+                    v-for="n in 4"
+                    :key="n"
+                    class="h-2 rounded-full transition-all duration-300"
+                    :class="
+                      n - 1 <= currentStep
+                        ? 'w-10 bg-indigo-600'
+                        : 'w-5 bg-slate-200'
+                    "
+                  ></div>
+                </div>
+              </div>
+
+              <!-- STEP NAVIGATION -->
+              <div class="mt-6 grid grid-cols-2 gap-2 md:grid-cols-4">
+                <button
+                  v-for="(step, index) in stepItems"
+                  :key="step.id"
+                  type="button"
+                  @click="goToStep(index)"
+                  class="step-nav"
+                  :class="[
+                    currentStep === index
+                      ? 'border-indigo-200 bg-indigo-50 text-indigo-700 shadow-sm'
+                      : index < currentStep
+                        ? 'border-emerald-100 bg-emerald-50/60 text-emerald-700'
+                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                  ]"
+                >
+                  <span
+                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-black"
+                    :class="
+                      currentStep === index
+                        ? 'bg-indigo-600 text-white'
+                        : index < currentStep
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-100 text-slate-500'
+                    "
+                  >
+                    <i
+                      v-if="index < currentStep"
+                      class="fas fa-check"
+                    ></i>
+
+                    <span v-else>
+                      {{ index + 1 }}
+                    </span>
+                  </span>
+
+                  <span class="min-w-0 text-left">
+                    <span class="block text-xs font-extrabold">
+                      {{ step.label }}
+                    </span>
+
+                    <span
+                      class="mt-0.5 hidden text-[10px] text-current/70 sm:block"
+                    >
+                      {{ step.description }}
+                    </span>
+                  </span>
                 </button>
               </div>
             </div>
 
-            <!-- Step 1: Filters -->
-            <div v-else-if="currentStep === 1" key="step1" class="space-y-6">
-              <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold text-slate-900">🔍 Filters</h2>
-                <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
-              </div>
+            <div class="p-5 md:p-7">
+              <!-- STEP 1 -->
+              <div
+                v-if="currentStep === 0"
+                class="animate-fade-in space-y-6"
+              >
+                <div>
+                  <span class="section-kicker">01 · SCOPE</span>
 
-              <!-- Patient Data Filters -->
-              <div v-if="form.dataType === 'patient' || form.dataType === 'both'" class="space-y-4 border-l-4 border-indigo-200 pl-4">
-                <h3 class="font-semibold text-slate-700 flex items-center gap-2">
-                  <i class="fas fa-user-injured text-indigo-500"></i> Patient Data Filters
-                </h3>
-                <label class="flex items-center gap-2 text-sm bg-white p-3 rounded-xl border border-slate-200">
-                  <input type="checkbox" v-model="form.includePatientData" class="rounded text-indigo-600 focus:ring-indigo-500" />
-                  Include detailed patient data table in report
-                </label>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date From</label>
-                    <input type="date" v-model="form.patientDateFrom" class="w-full border rounded-lg p-2 text-sm" />
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date To</label>
-                    <input type="date" v-model="form.patientDateTo" class="w-full border rounded-lg p-2 text-sm" />
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Procedure</label>
-                    <select v-model="form.procedureFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                      <option value="all">All Procedures</option>
-                      <option v-for="proc in procedures" :key="proc" :value="proc">{{ proc }}</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Country</label>
-                    <input type="text" v-model="form.countryFilter" placeholder="e.g., Kenya" class="w-full border rounded-lg p-2 text-sm" />
-                  </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Status</label>
-                    <select v-model="form.statusFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                      <option value="all">All Statuses</option>
-                      <option value="active">Active</option>
-                      <option value="done">Done</option>
-                    </select>
+                  <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                    What do you want to report?
+                  </h3>
+
+                  <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                    Select the intelligence layer you need. You can combine
+                    patient and website performance into one report.
+                  </p>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-3">
+                  <button
+                    v-for="item in scopes"
+                    :key="item.value"
+                    type="button"
+                    @click="selectScope(item.value)"
+                    class="scope-card"
+                    :class="
+                      form.dataType === item.value
+                        ? 'border-indigo-500 bg-indigo-50/80 ring-4 ring-indigo-100'
+                        : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-lg'
+                    "
+                  >
+                    <div class="flex items-start justify-between">
+                      <span
+                        class="flex h-12 w-12 items-center justify-center rounded-2xl"
+                        :class="
+                          form.dataType === item.value
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 text-indigo-600'
+                        "
+                      >
+                        <i :class="item.icon" class="text-lg"></i>
+                      </span>
+
+                      <span
+                        v-if="form.dataType === item.value"
+                        class="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs text-indigo-600 shadow-sm"
+                      >
+                        <i class="fas fa-check"></i>
+                      </span>
+                    </div>
+
+                    <div class="mt-6">
+                      <h4 class="text-lg font-black text-slate-900">
+                        {{ item.label }}
+                      </h4>
+
+                      <p class="mt-2 text-sm leading-5 text-slate-500">
+                        {{ item.description }}
+                      </p>
+                    </div>
+
+                    <div
+                      class="mt-5 flex items-center gap-2 text-xs font-bold"
+                      :class="
+                        form.dataType === item.value
+                          ? 'text-indigo-600'
+                          : 'text-slate-400'
+                      "
+                    >
+                      <span>
+                        {{
+                          form.dataType === item.value
+                            ? 'Selected'
+                            : 'Choose scope'
+                        }}
+                      </span>
+
+                      <i class="fas fa-arrow-right"></i>
+                    </div>
+                  </button>
+                </div>
+
+                <div
+                  class="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4"
+                >
+                  <div class="flex gap-3">
+                    <div
+                      class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"
+                    >
+                      <i class="fas fa-lightbulb"></i>
+                    </div>
+
+                    <div>
+                      <p class="text-sm font-bold text-slate-800">
+                        Recommended setup
+                      </p>
+
+                      <p class="mt-1 text-xs leading-5 text-slate-600">
+                        The combined report is the most useful operating view:
+                        it connects patient demand with website acquisition and
+                        engagement.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <!-- Web Data Filters -->
-              <div v-if="form.dataType === 'web' || form.dataType === 'both'" class="space-y-4 border-l-4 border-emerald-200 pl-4">
-                <h3 class="font-semibold text-slate-700 flex items-center gap-2">
-                  <i class="fas fa-globe text-emerald-500"></i> Web Data Filters
-                </h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- STEP 2 -->
+              <div
+                v-else-if="currentStep === 1"
+                class="animate-fade-in space-y-7"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date From</label>
-                    <input type="date" v-model="form.webDateFrom" class="w-full border rounded-lg p-2 text-sm" />
+                    <span class="section-kicker">02 · FILTERS</span>
+
+                    <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                      Define the data window
+                    </h3>
+
+                    <p class="mt-2 text-sm leading-6 text-slate-500">
+                      Narrow the report without changing your underlying
+                      records.
+                    </p>
                   </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Date To</label>
-                    <input type="date" v-model="form.webDateTo" class="w-full border rounded-lg p-2 text-sm" />
+
+                  <button
+                    type="button"
+                    @click="currentStep = 0"
+                    class="text-sm font-bold text-slate-500 transition hover:text-indigo-600"
+                  >
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to scope
+                  </button>
+                </div>
+
+                <!-- PATIENT FILTERS -->
+                <div
+                  v-if="form.dataType !== 'web'"
+                  class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:p-5"
+                >
+                  <div class="mb-5 flex items-center gap-3">
+                    <div
+                      class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"
+                    >
+                      <i class="fas fa-user-injured"></i>
+                    </div>
+
+                    <div>
+                      <h4 class="font-extrabold text-slate-900">
+                        Patient intelligence
+                      </h4>
+                      <p class="text-xs text-slate-500">
+                        Define the patient cohort included in the report.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Source</label>
-                    <select v-model="form.sourceFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                      <option value="all">All Sources</option>
-                      <option v-for="src in trafficSources" :key="src" :value="src">{{ src }}</option>
-                    </select>
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label class="label">Patient from</label>
+                      <input
+                        v-model="form.patientDateFrom"
+                        type="date"
+                        class="field"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="label">Patient to</label>
+                      <input
+                        v-model="form.patientDateTo"
+                        type="date"
+                        class="field"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="label">Procedure</label>
+                      <select
+                        v-model="form.procedureFilter"
+                        class="field"
+                      >
+                        <option value="all">All procedures</option>
+                        <option
+                          v-for="procedure in procedures"
+                          :key="procedure"
+                          :value="procedure"
+                        >
+                          {{ procedure }}
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="label">Country</label>
+                      <input
+                        v-model.trim="form.countryFilter"
+                        class="field"
+                        placeholder="All countries"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Country</label>
-                    <select v-model="form.webCountryFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                      <option value="all">All Countries</option>
-                      <option v-for="c in countries" :key="c" :value="c">{{ c }}</option>
-                    </select>
+
+                  <label
+                    class="mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-indigo-200"
+                  >
+                    <input
+                      v-model="form.includePatientData"
+                      type="checkbox"
+                      class="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+
+                    <span>
+                      <span class="block text-sm font-bold text-slate-800">
+                        Include detailed patient table
+                      </span>
+
+                      <span class="mt-1 block text-xs leading-5 text-slate-500">
+                        Adds a patient-level table to the generated PDF for
+                        operational review.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
+                <!-- WEBSITE FILTERS -->
+                <div
+                  v-if="form.dataType !== 'patient'"
+                  class="rounded-2xl border border-cyan-100 bg-cyan-50/30 p-4 md:p-5"
+                >
+                  <div class="mb-5 flex items-center gap-3">
+                    <div
+                      class="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-700"
+                    >
+                      <i class="fas fa-globe"></i>
+                    </div>
+
+                    <div>
+                      <h4 class="font-extrabold text-slate-900">
+                        Website intelligence
+                      </h4>
+                      <p class="text-xs text-slate-500">
+                        Control the Google Analytics reporting window.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <label class="block text-sm font-semibold text-slate-600 mb-1">Device</label>
-                    <select v-model="form.deviceFilter" class="w-full border rounded-lg p-2 text-sm bg-white">
-                      <option value="all">All Devices</option>
-                      <option v-for="d in devices" :key="d" :value="d">{{ d }}</option>
-                    </select>
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <label class="label">Website from</label>
+                      <input
+                        v-model="form.webDateFrom"
+                        type="date"
+                        class="field"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="label">Website to</label>
+                      <input
+                        v-model="form.webDateTo"
+                        type="date"
+                        class="field"
+                      />
+                    </div>
+
+                    <div>
+                      <label class="label">Source</label>
+                      <select
+                        v-model="form.sourceFilter"
+                        class="field"
+                      >
+                        <option value="all">All sources</option>
+
+                        <option
+                          v-for="source in trafficSources"
+                          :key="source"
+                          :value="source"
+                        >
+                          {{ source }}
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="label">Country</label>
+                      <select
+                        v-model="form.webCountryFilter"
+                        class="field"
+                      >
+                        <option value="all">All countries</option>
+
+                        <option
+                          v-for="country in countries"
+                          :key="country"
+                          :value="country"
+                        >
+                          {{ country }}
+                        </option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="label">Device</label>
+                      <select
+                        v-model="form.deviceFilter"
+                        class="field"
+                      >
+                        <option value="all">All devices</option>
+
+                        <option
+                          v-for="device in devices"
+                          :key="device"
+                          :value="device"
+                        >
+                          {{ device }}
+                        </option>
+                      </select>
+                    </div>
                   </div>
+                </div>
+
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    @click="currentStep = 2"
+                    class="btn-primary"
+                  >
+                    Continue to recipients
+                    <i class="fas fa-arrow-right"></i>
+                  </button>
                 </div>
               </div>
 
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                Next <i class="fas fa-arrow-right ml-1"></i>
-              </button>
+              <!-- STEP 3 -->
+              <div
+                v-else-if="currentStep === 2"
+                class="animate-fade-in space-y-7"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <span class="section-kicker">03 · DELIVERY</span>
+
+                    <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                      Who should receive it?
+                    </h3>
+
+                    <p class="mt-2 text-sm leading-6 text-slate-500">
+                      Add individual recipients or save reusable mailing lists.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    @click="currentStep = 1"
+                    class="text-sm font-bold text-slate-500 transition hover:text-indigo-600"
+                  >
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to filters
+                  </button>
+                </div>
+
+                <!-- RECIPIENT INPUT -->
+                <div
+                  class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:p-5"
+                >
+                  <label class="label">Add recipient</label>
+
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      v-model.trim="newEmail"
+                      @keyup.enter="addEmail"
+                      type="email"
+                      class="field flex-1"
+                      placeholder="recipient@example.com"
+                    />
+
+                    <button
+                      type="button"
+                      @click="addEmail"
+                      class="btn-primary whitespace-nowrap"
+                    >
+                      <i class="fas fa-plus"></i>
+                      Add recipient
+                    </button>
+                  </div>
+                </div>
+
+                <!-- CURRENT RECIPIENTS -->
+                <div>
+                  <div class="mb-3 flex items-center justify-between">
+                    <div>
+                      <h4 class="font-extrabold text-slate-900">
+                        Current recipients
+                      </h4>
+                      <p class="text-xs text-slate-500">
+                        {{ form.recipients.length }} recipient{{
+                          form.recipients.length === 1 ? '' : 's'
+                        }}
+                        selected
+                      </p>
+                    </div>
+
+                    <button
+                      v-if="form.recipients.length"
+                      type="button"
+                      @click="form.recipients = []"
+                      class="text-xs font-bold text-red-500 hover:text-red-600"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+
+                  <div
+                    v-if="form.recipients.length"
+                    class="grid gap-2 md:grid-cols-2"
+                  >
+                    <div
+                      v-for="(email, index) in form.recipients"
+                      :key="email"
+                      class="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm"
+                    >
+                      <div class="flex min-w-0 items-center gap-3">
+                        <div
+                          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"
+                        >
+                          <i class="fas fa-envelope"></i>
+                        </div>
+
+                        <span
+                          class="truncate text-sm font-semibold text-slate-700"
+                          :title="email"
+                        >
+                          {{ email }}
+                        </span>
+                      </div>
+
+                      <button
+                        type="button"
+                        @click="removeEmail(index)"
+                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                        title="Remove recipient"
+                      >
+                        <i class="fas fa-times text-xs"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    v-else
+                    class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"
+                  >
+                    <div
+                      class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-slate-400 shadow-sm"
+                    >
+                      <i class="fas fa-user-plus"></i>
+                    </div>
+
+                    <p class="mt-3 text-sm font-bold text-slate-700">
+                      No recipients yet
+                    </p>
+
+                    <p class="mt-1 text-xs text-slate-500">
+                      Add at least one email address before activating or
+                      sending a report.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- MAILING LISTS -->
+                <div class="border-t border-slate-100 pt-6">
+                  <div class="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <span class="section-kicker">SAVED GROUPS</span>
+
+                      <h4 class="mt-1 font-extrabold text-slate-900">
+                        Mailing lists
+                      </h4>
+
+                      <p class="mt-1 text-xs text-slate-500">
+                        Save frequently used recipient groups and load them in
+                        one click.
+                      </p>
+                    </div>
+
+                    <span
+                      class="inline-flex w-fit items-center rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600"
+                    >
+                      {{ mailingLists.length }} saved
+                    </span>
+                  </div>
+
+                  <div class="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      v-model.trim="mailingListName"
+                      class="field flex-1"
+                      placeholder="e.g. Management team"
+                    />
+
+                    <button
+                      type="button"
+                      @click="saveCurrentMailingList"
+                      :disabled="!mailingListName.trim() || !form.recipients.length"
+                      class="btn-secondary whitespace-nowrap"
+                    >
+                      <i class="fas fa-bookmark"></i>
+                      Save list
+                    </button>
+                  </div>
+
+                  <div
+                    v-if="mailingLists.length"
+                    class="mt-4 grid gap-3 md:grid-cols-2"
+                  >
+                    <button
+                      v-for="list in mailingLists"
+                      :key="list.id"
+                      type="button"
+                      @click="loadMailingList(list)"
+                      class="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-indigo-300 hover:bg-indigo-50/30"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="flex min-w-0 items-center gap-3">
+                          <div
+                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600"
+                          >
+                            <i class="fas fa-users"></i>
+                          </div>
+
+                          <div class="min-w-0">
+                            <p class="truncate text-sm font-extrabold text-slate-800">
+                              {{ list.name }}
+                            </p>
+
+                            <p class="mt-1 text-xs text-slate-500">
+                              {{ list.recipients?.length || 0 }}
+                              recipients
+                            </p>
+                          </div>
+                        </div>
+
+                        <i class="fas fa-chevron-right text-xs text-slate-400"></i>
+                      </div>
+                    </button>
+                  </div>
+
+                  <p
+                    v-else
+                    class="mt-4 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500"
+                  >
+                    No saved mailing lists yet. Save this recipient group for
+                    future reports.
+                  </p>
+                </div>
+
+                <div class="flex justify-end">
+                  <button
+                    type="button"
+                    @click="currentStep = 3"
+                    class="btn-primary"
+                  >
+                    Continue to schedule
+                    <i class="fas fa-arrow-right"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- STEP 4 -->
+              <div
+                v-else
+                class="animate-fade-in space-y-7"
+              >
+                <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <span class="section-kicker">04 · AUTOMATION</span>
+
+                    <h3 class="mt-2 text-2xl font-black tracking-tight text-slate-900">
+                      Schedule delivery
+                    </h3>
+
+                    <p class="mt-2 text-sm leading-6 text-slate-500">
+                      Decide how often this report should be delivered
+                      automatically.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    @click="currentStep = 2"
+                    class="text-sm font-bold text-slate-500 transition hover:text-indigo-600"
+                  >
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to recipients
+                  </button>
+                </div>
+
+                <div class="grid gap-4 md:grid-cols-3">
+                  <button
+                    v-for="freq in frequencies"
+                    :key="freq.value"
+                    type="button"
+                    @click="form.frequency = freq.value"
+                    class="rounded-2xl border-2 p-5 text-left transition"
+                    :class="
+                      form.frequency === freq.value
+                        ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-100'
+                        : 'border-slate-200 bg-white hover:border-indigo-200'
+                    "
+                  >
+                    <div class="flex items-start justify-between">
+                      <span
+                        class="flex h-10 w-10 items-center justify-center rounded-xl"
+                        :class="
+                          form.frequency === freq.value
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 text-slate-500'
+                        "
+                      >
+                        <i :class="freq.icon"></i>
+                      </span>
+
+                      <span
+                        v-if="form.frequency === freq.value"
+                        class="text-xs text-indigo-600"
+                      >
+                        <i class="fas fa-check-circle"></i>
+                      </span>
+                    </div>
+
+                    <p class="mt-4 text-base font-black capitalize text-slate-900">
+                      {{ freq.label }}
+                    </p>
+
+                    <p class="mt-1 text-xs leading-5 text-slate-500">
+                      {{ freq.description }}
+                    </p>
+                  </button>
+                </div>
+
+                <div
+                  class="grid gap-5 md:grid-cols-2"
+                >
+                  <div
+                    class="rounded-2xl border border-slate-200 bg-white p-5"
+                  >
+                    <label class="label">Delivery time</label>
+
+                    <div class="relative">
+                      <input
+                        v-model="form.time"
+                        type="time"
+                        class="field pr-12"
+                      />
+
+                      <div
+                        class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                      >
+                        <i class="fas fa-clock"></i>
+                      </div>
+                    </div>
+
+                    <p class="mt-2 text-xs text-slate-500">
+                      Schedule uses the clinic's configured local timezone.
+                    </p>
+                  </div>
+
+                  <div
+                    class="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-5"
+                  >
+                    <div class="flex items-start gap-3">
+                      <div
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"
+                      >
+                        <i class="fas fa-shield-check"></i>
+                      </div>
+
+                      <div>
+                        <p class="text-sm font-extrabold text-slate-900">
+                          Ready to activate
+                        </p>
+
+                        <p class="mt-1 text-xs leading-5 text-slate-600">
+                          Your configuration is stored with the authenticated
+                          operator and will persist after reload or logout.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- PREVIEW -->
+                <div
+                  class="overflow-hidden rounded-[24px] border border-slate-200 bg-slate-950 text-white"
+                >
+                  <div class="border-b border-white/10 px-5 py-4">
+                    <div class="flex items-center justify-between">
+                      <div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
+                          Automation preview
+                        </p>
+
+                        <h4 class="mt-1 text-lg font-black">
+                          {{ scopeLabel }}
+                        </h4>
+                      </div>
+
+                      <span
+                        class="rounded-full bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300"
+                      >
+                        Ready
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="grid divide-y divide-white/10 md:grid-cols-4 md:divide-x md:divide-y-0">
+                    <div class="p-5">
+                      <p class="preview-label">Frequency</p>
+                      <p class="preview-value capitalize">
+                        {{ form.frequency }}
+                      </p>
+                    </div>
+
+                    <div class="p-5">
+                      <p class="preview-label">Time</p>
+                      <p class="preview-value">
+                        {{ form.time || '09:00' }}
+                      </p>
+                    </div>
+
+                    <div class="p-5">
+                      <p class="preview-label">Recipients</p>
+                      <p class="preview-value">
+                        {{ form.recipients.length }}
+                      </p>
+                    </div>
+
+                    <div class="p-5">
+                      <p class="preview-label">Patient table</p>
+                      <p class="preview-value">
+                        {{ form.includePatientData ? 'Included' : 'Excluded' }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    @click="activate"
+                    :disabled="!form.recipients.length"
+                    class="btn-success justify-center"
+                  >
+                    <i class="fas fa-calendar-check"></i>
+                    Activate & save schedule
+                  </button>
+                </div>
+              </div>
             </div>
+          </section>
+        </div>
 
-            <!-- Step 2: Recipients -->
-            <div v-else-if="currentStep === 2" key="step2" class="space-y-6">
-              <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold text-slate-900">📧 Recipient List</h2>
-                <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
-              </div>
-              <div class="flex gap-2">
-                <input type="email" v-model="newEmail" placeholder="Enter email address" class="flex-1 border rounded-lg p-2 text-sm focus:ring-2 focus:ring-indigo-500/20 outline-none" @keyup.enter="addEmail" />
-                <button @click="addEmail" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition">Add</button>
-              </div>
-              <div class="space-y-2">
-                <div v-for="(email, idx) in form.recipients" :key="idx" class="flex justify-between items-center bg-slate-50 p-2 rounded-lg">
-                  <span class="text-sm">{{ email }}</span>
-                  <button @click="removeEmail(idx)" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
-                </div>
-                <p v-if="form.recipients.length === 0" class="text-sm text-slate-400 text-center py-4">No recipients added yet.</p>
-              </div>
-              <button @click="saveMailingList" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-semibold transition">
-                <i class="fas fa-save mr-1"></i> Save Mailing List
-              </button>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                Next <i class="fas fa-arrow-right ml-1"></i>
-              </button>
-            </div>
-
-            <!-- Step 3: Frequency -->
-            <div v-else-if="currentStep === 3" key="step3" class="space-y-6">
-              <div class="flex items-center justify-between">
-                <h2 class="text-xl font-bold text-slate-900">⏰ Schedule</h2>
-                <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
-              </div>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <button @click="form.frequency = 'daily'" class="p-4 rounded-xl border-2 text-center transition-all" :class="form.frequency === 'daily' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
-                  <i class="fas fa-sun text-2xl text-amber-500"></i>
-                  <p class="font-bold mt-1">Daily</p>
-                </button>
-                <button @click="form.frequency = 'weekly'" class="p-4 rounded-xl border-2 text-center transition-all" :class="form.frequency === 'weekly' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
-                  <i class="fas fa-calendar-week text-2xl text-blue-500"></i>
-                  <p class="font-bold mt-1">Weekly</p>
-                </button>
-                <button @click="form.frequency = 'monthly'" class="p-4 rounded-xl border-2 text-center transition-all" :class="form.frequency === 'monthly' ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:border-indigo-300'">
-                  <i class="fas fa-calendar-alt text-2xl text-purple-500"></i>
-                  <p class="font-bold mt-1">Monthly</p>
-                </button>
-              </div>
+        <!-- RIGHT SIDEBAR -->
+        <aside class="space-y-5">
+          <!-- SAVED STATE -->
+          <section class="side-card">
+            <div class="flex items-start justify-between gap-4">
               <div>
-                <label class="block text-sm font-semibold text-slate-600 mb-1">Time of Day</label>
-                <input type="time" v-model="form.time" class="border rounded-lg p-2 text-sm" />
+                <span class="section-kicker">PERSISTENCE</span>
+
+                <h3 class="mt-2 text-lg font-black text-slate-900">
+                  Saved state
+                </h3>
               </div>
-              <button @click="currentStep++" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                Next <i class="fas fa-arrow-right ml-1"></i>
-              </button>
+
+              <span
+                class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600"
+              >
+                <i class="fas fa-database"></i>
+              </span>
             </div>
 
-            <!-- Step 4: Confirmation -->
-            <div v-else key="step4" class="space-y-6 text-center">
-              <div class="text-5xl">✅</div>
-              <h2 class="text-xl font-bold text-slate-900">Settings Ready!</h2>
-              <p class="text-slate-500">Your automated report will be generated according to your preferences.</p>
-              <button @click="saveSettingsAndFinish" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition transform hover:scale-105">
-                <i class="fas fa-check-circle mr-2"></i> Activate Automation
-              </button>
-              <button @click="currentStep--" class="text-sm text-indigo-600 hover:underline">← Back</button>
-            </div>
-          </Transition>
-        </div>
-      </div>
+            <p class="mt-3 text-sm leading-6 text-slate-500">
+              Your settings, mailing lists and report activity are tied to the
+              currently authenticated operator rather than temporary browser
+              state.
+            </p>
 
-      <!-- Email Logs -->
-      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div class="p-4 border-b border-slate-100">
-          <h2 class="text-lg font-bold text-slate-900">📨 Email Logs</h2>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <div class="mini-metric">
+                <span>Mailing lists</span>
+                <strong>{{ mailingLists.length }}</strong>
+              </div>
+
+              <div class="mini-metric">
+                <span>Email logs</span>
+                <strong>{{ emailLogs.length }}</strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- AUTOMATION STATUS -->
+          <section
+            class="overflow-hidden rounded-[24px] border shadow-sm"
+            :class="
+              settings?.activatedAt
+                ? 'border-emerald-200 bg-emerald-50/70'
+                : 'border-slate-200 bg-white'
+            "
+          >
+            <div class="p-5">
+              <div class="flex items-start justify-between">
+                <div>
+                  <span
+                    class="text-[10px] font-bold uppercase tracking-[0.18em]"
+                    :class="
+                      settings?.activatedAt
+                        ? 'text-emerald-600'
+                        : 'text-slate-400'
+                    "
+                  >
+                    AUTOMATION
+                  </span>
+
+                  <h3
+                    class="mt-2 text-lg font-black"
+                    :class="
+                      settings?.activatedAt
+                        ? 'text-emerald-950'
+                        : 'text-slate-900'
+                    "
+                  >
+                    {{
+                      settings?.activatedAt
+                        ? 'Schedule active'
+                        : 'No active schedule'
+                    }}
+                  </h3>
+                </div>
+
+                <div
+                  class="flex h-10 w-10 items-center justify-center rounded-xl"
+                  :class="
+                    settings?.activatedAt
+                      ? 'bg-emerald-100 text-emerald-600'
+                      : 'bg-slate-100 text-slate-400'
+                  "
+                >
+                  <i
+                    class="fas"
+                    :class="
+                      settings?.activatedAt
+                        ? 'fa-bolt'
+                        : 'fa-pause'
+                    "
+                  ></i>
+                </div>
+              </div>
+
+              <div
+                v-if="settings?.activatedAt"
+                class="mt-5 rounded-2xl border border-emerald-200 bg-white/70 p-4"
+              >
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Frequency
+                    </p>
+
+                    <p class="mt-1 text-sm font-extrabold capitalize text-slate-800">
+                      {{ settings.frequency || form.frequency }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Delivery
+                    </p>
+
+                    <p class="mt-1 text-sm font-extrabold text-slate-800">
+                      {{ settings.time || form.time }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <p
+                v-else
+                class="mt-3 text-sm leading-6 text-slate-500"
+              >
+                Configure a schedule to automatically distribute reports to
+                your saved recipients.
+              </p>
+
+              <button
+                v-if="settings?.activatedAt"
+                type="button"
+                @click="cancelAutomation"
+                class="mt-4 inline-flex items-center gap-2 text-sm font-bold text-red-600 transition hover:text-red-700"
+              >
+                <i class="fas fa-ban"></i>
+                Cancel schedule
+              </button>
+            </div>
+          </section>
+
+          <!-- CURRENT CONFIG -->
+          <section class="side-card">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="section-kicker">CURRENT CONFIG</span>
+                <h3 class="mt-2 text-lg font-black text-slate-900">
+                  At a glance
+                </h3>
+              </div>
+
+              <span
+                class="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"
+              >
+                <i class="fas fa-eye"></i>
+              </span>
+            </div>
+
+            <div class="mt-5 space-y-3">
+              <div class="config-row">
+                <span>Scope</span>
+                <strong class="capitalize">{{ scopeLabel }}</strong>
+              </div>
+
+              <div class="config-row">
+                <span>Frequency</span>
+                <strong class="capitalize">{{ form.frequency }}</strong>
+              </div>
+
+              <div class="config-row">
+                <span>Time</span>
+                <strong>{{ form.time || '09:00' }}</strong>
+              </div>
+
+              <div class="config-row">
+                <span>Recipients</span>
+                <strong>{{ form.recipients.length }}</strong>
+              </div>
+
+              <div class="config-row">
+                <span>Patient table</span>
+                <strong>
+                  {{ form.includePatientData ? 'Included' : 'Excluded' }}
+                </strong>
+              </div>
+            </div>
+          </section>
+
+          <!-- HELP -->
+          <section class="rounded-[24px] border border-indigo-100 bg-indigo-50/70 p-5 shadow-sm">
+            <div class="flex items-start gap-3">
+              <div
+                class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600"
+              >
+                <i class="fas fa-circle-info"></i>
+              </div>
+
+              <div>
+                <p class="text-sm font-extrabold text-slate-900">
+                  Workflow tip
+                </p>
+
+                <p class="mt-1 text-xs leading-5 text-slate-600">
+                  Save mailing lists for recurring management, clinical or
+                  marketing reports. This eliminates repetitive recipient entry.
+                </p>
+              </div>
+            </div>
+          </section>
+        </aside>
+      </section>
+
+      <!-- EMAIL HISTORY -->
+      <section
+        class="mt-6 overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"
+      >
+        <div
+          class="border-b border-slate-100 px-5 py-5 md:px-7"
+        >
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <span class="section-kicker">AUDIT TRAIL</span>
+
+              <h2 class="mt-2 text-xl font-black tracking-tight text-slate-900">
+                Email history
+              </h2>
+
+              <p class="mt-1 text-sm text-slate-500">
+                Every report send attempt is retained for the current operator.
+              </p>
+            </div>
+
+            <div
+              class="inline-flex w-fit items-center gap-2 rounded-full bg-slate-100 px-3.5 py-2 text-xs font-bold text-slate-600"
+            >
+              <i class="fas fa-history text-slate-400"></i>
+              {{ emailLogs.length }} total attempts
+            </div>
+          </div>
         </div>
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
-            <thead class="bg-slate-50 text-slate-500">
+
+        <div
+          v-if="emailLogs.length"
+          class="overflow-x-auto"
+        >
+          <table class="min-w-full">
+            <thead class="bg-slate-50">
               <tr>
-                <th class="px-4 py-2 text-left">Date</th>
-                <th class="px-4 py-2 text-left">Recipients</th>
-                <th class="px-4 py-2 text-left">Report Type</th>
-                <th class="px-4 py-2 text-left">Status</th>
+                <th class="table-head">Date</th>
+                <th class="table-head">Recipients</th>
+                <th class="table-head">Report</th>
+                <th class="table-head">Status</th>
               </tr>
             </thead>
+
             <tbody class="divide-y divide-slate-100">
-              <tr v-for="log in emailLogs" :key="log.id" class="hover:bg-slate-50/80 transition-colors">
-                <td class="px-4 py-2">{{ formatDate(log.sentAt?.toDate()) }}</td>
-                <td class="px-4 py-2">{{ log.recipients?.join(', ') }}</td>
-                <td class="px-4 py-2">{{ log.reportType }}</td>
-                <td class="px-4 py-2">
-                  <span class="px-2 py-1 rounded-full text-xs font-semibold" :class="log.success ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'">
-                    {{ log.success ? 'Sent' : 'Failed' }}
+              <tr
+                v-for="log in emailLogs"
+                :key="log.id"
+                class="transition hover:bg-slate-50/70"
+              >
+                <td class="table-cell whitespace-nowrap">
+                  {{ formatDate(log.sentAt) }}
+                </td>
+
+                <td class="table-cell min-w-[260px]">
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      v-for="recipient in log.recipients || []"
+                      :key="recipient"
+                      class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                    >
+                      {{ recipient }}
+                    </span>
+
+                    <span
+                      v-if="!(log.recipients || []).length"
+                      class="text-slate-400"
+                    >
+                      —
+                    </span>
+                  </div>
+                </td>
+
+                <td class="table-cell font-semibold text-slate-700">
+                  {{ log.reportType || 'Report' }}
+                </td>
+
+                <td class="table-cell">
+                  <span
+                    class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+                    :class="
+                      log.success
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-red-100 text-red-700'
+                    "
+                  >
+                    <span
+                      class="h-1.5 w-1.5 rounded-full"
+                      :class="
+                        log.success
+                          ? 'bg-emerald-500'
+                          : 'bg-red-500'
+                      "
+                    ></span>
+
+                    {{ log.success ? 'Sent successfully' : 'Failed' }}
                   </span>
                 </td>
-              </tr>
-              <tr v-if="emailLogs.length === 0">
-                <td colspan="4" class="px-4 py-8 text-center text-slate-400">No email logs yet.</td>
               </tr>
             </tbody>
           </table>
         </div>
-      </div>
-    </div>
+
+        <div
+          v-else
+          class="px-6 py-14 text-center"
+        >
+          <div
+            class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400"
+          >
+            <i class="fas fa-envelope-open-text text-lg"></i>
+          </div>
+
+          <h3 class="mt-4 text-sm font-extrabold text-slate-800">
+            No email activity yet
+          </h3>
+
+          <p class="mx-auto mt-1 max-w-md text-xs leading-5 text-slate-500">
+            Sent and failed report attempts will appear here automatically.
+          </p>
+        </div>
+      </section>
+    </main>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch, computed } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import NavBar from '../components/NavBar.vue'
 import { useAutomationSettings } from '../composables/useAutomationSettings'
+import { useAuth } from '../stores/auth'
 import { useWixData } from '../composables/useWixData'
 import { useGoogleAnalytics } from '../composables/useGoogleAnalytics'
 import { useReportGeneration } from '../composables/useReportGeneration'
-import Chart from 'chart.js/auto'
 
-const { settings, emailLogs, loadSettings, saveSettings, loadEmailLogs, sendReportEmail, cancelAutomation: cancelAutomationRemote } = useAutomationSettings()
-const { procedures, patients } = useWixData()
+const {
+  settings,
+  emailLogs,
+  mailingLists,
+  loadSettings,
+  saveSettings,
+  loadEmailLogs,
+  loadMailingLists,
+  saveMailingList,
+  sendReportEmail,
+  cancelAutomation: cancelRemote,
+  cleanup
+} = useAutomationSettings()
+
+const { procedures } = useWixData()
+const { authReady } = useAuth()
 const { gaData } = useGoogleAnalytics()
-const { generateDetailedInsights } = useReportGeneration()
+
+const {
+  generateDetailedInsights,
+  generateReportData
+} = useReportGeneration()
 
 const currentStep = ref(0)
 const newEmail = ref('')
-const sendingNow = ref(false)
-const steps = [
-  { title: 'Data' },
-  { title: 'Filters' },
-  { title: 'Recipients' },
-  { title: 'Schedule' },
-  { title: 'Confirm' },
+const mailingListName = ref('')
+const sending = ref(false)
+const settingsHydrated = ref(false)
+// True while we are programmatically writing Firestore data into `form`.
+// Prevents that programmatic write from being mistaken for a user edit and
+// re-saved (which would just be a harmless no-op, but also prevents the
+// very first snapshot from firing a save before we know what's really there).
+const suppressAutosave = ref(true)
+const draftSaveState = ref('idle') // 'idle' | 'saving' | 'saved' | 'error'
+
+const scopes = [
+  {
+    value: 'patient',
+    label: 'Patient',
+    description:
+      'Patient intelligence, registrations, procedures and commercial insights.',
+    icon: 'fas fa-user-injured'
+  },
+  {
+    value: 'web',
+    label: 'Website',
+    description:
+      'Google Analytics performance, traffic, engagement and acquisition.',
+    icon: 'fas fa-globe'
+  },
+  {
+    value: 'both',
+    label: 'Combined',
+    description:
+      'A consolidated view of patient demand and website performance.',
+    icon: 'fas fa-layer-group'
+  }
+]
+
+const frequencies = [
+  {
+    value: 'daily',
+    label: 'Daily',
+    description: 'Receive an automated operational snapshot every day.',
+    icon: 'fas fa-sun'
+  },
+  {
+    value: 'weekly',
+    label: 'Weekly',
+    description: 'Ideal for recurring management and performance reviews.',
+    icon: 'fas fa-calendar-week'
+  },
+  {
+    value: 'monthly',
+    label: 'Monthly',
+    description: 'Best suited for strategic monthly reporting.',
+    icon: 'fas fa-calendar-alt'
+  }
+]
+
+const stepItems = [
+  {
+    id: 1,
+    label: 'Scope',
+    description: 'Choose data'
+  },
+  {
+    id: 2,
+    label: 'Filters',
+    description: 'Refine records'
+  },
+  {
+    id: 3,
+    label: 'Recipients',
+    description: 'Set delivery list'
+  },
+  {
+    id: 4,
+    label: 'Schedule',
+    description: 'Automate delivery'
+  }
 ]
 
 const defaultForm = {
   dataType: 'both',
   includePatientData: false,
+
   patientDateFrom: '',
   patientDateTo: '',
   procedureFilter: 'all',
   countryFilter: '',
-  statusFilter: 'all',
+
   webDateFrom: '',
   webDateTo: '',
   sourceFilter: 'all',
   webCountryFilter: 'all',
   deviceFilter: 'all',
+
   recipients: [],
+
   frequency: 'weekly',
   time: '09:00',
-  activatedAt: null,
+
+  activatedAt: null
 }
 
-const form = reactive({ ...defaultForm })
-const activeAutomations = ref([])
-
-const trafficSources = computed(() => (gaData.value?.trafficSources || []).map(s => s.source))
-const countries = computed(() => (gaData.value?.topCountries || []).map(c => c.country))
-const devices = computed(() => (gaData.value?.deviceCategories || []).map(d => d.device))
-
-watch(settings, (newSettings) => {
-  if (newSettings) {
-    Object.assign(form, defaultForm, newSettings)
-    if (newSettings.activatedAt) {
-      activeAutomations.value = [{
-        id: 'global',
-        reportType: newSettings.dataType,
-        frequency: newSettings.frequency,
-        activatedAt: newSettings.activatedAt,
-      }]
-    } else {
-      activeAutomations.value = []
-    }
-  }
-}, { immediate: true })
-
-onMounted(() => {
-  loadSettings()
-  loadEmailLogs()
+const form = reactive({
+  ...defaultForm,
+  recipients: []
 })
 
-const addEmail = () => {
-  const email = newEmail.value.trim()
-  if (email && !form.recipients.includes(email)) {
-    form.recipients.push(email)
+const trafficSources = computed(() => {
+  return (gaData.value?.trafficSources || [])
+    .map(row => row.sessionSource)
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index)
+    .sort((a, b) => String(a).localeCompare(String(b)))
+})
+
+const countries = computed(() => {
+  return (gaData.value?.topCountries || [])
+    .map(row => row.country)
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index)
+    .sort((a, b) => String(a).localeCompare(String(b)))
+})
+
+const devices = computed(() => {
+  return (gaData.value?.deviceCategories || [])
+    .map(row => row.deviceCategory)
+    .filter(Boolean)
+    .filter((value, index, arr) => arr.indexOf(value) === index)
+    .sort((a, b) => String(a).localeCompare(String(b)))
+})
+
+const scopeLabel = computed(() => {
+  const scope = scopes.find(item => item.value === form.dataType)
+  return scope?.label || 'Combined'
+})
+
+function hydrateSaved(value) {
+  suppressAutosave.value = true
+
+  Object.assign(
+    form,
+    defaultForm,
+    value || {},
+    {
+      recipients: Array.isArray(value?.recipients)
+        ? [...value.recipients]
+        : []
+    }
+  )
+
+  // Let the Object.assign mutation above finish propagating through the
+  // deep watcher below before autosave is allowed to react to real edits.
+  nextTick(() => {
+    suppressAutosave.value = false
+  })
+}
+
+// Hydrate the form exactly once from the very first Firestore snapshot,
+// whether or not a saved document actually exists yet.
+//
+// The old version only ran `if (value)`, which meant a brand-new operator
+// with no saved doc (value stays null) never got marked as hydrated, so
+// `suppressAutosave` (see below) was never released and their edits were
+// never saved either. This is very likely the root cause of "my changes
+// get erased on reload": the wizard only ever persisted anything when the
+// final Activate button was clicked, so any progress made before that
+// point only existed in memory and vanished on refresh/navigation.
+watch(
+  settings,
+  value => {
+    if (settingsHydrated.value) return
+
+    if (value) {
+      hydrateSaved(value)
+    } else {
+      suppressAutosave.value = false
+    }
+
+    settingsHydrated.value = true
+  },
+  { immediate: true }
+)
+
+// Debounced autosave: persist scope, filters, recipients and schedule to
+// Firestore as the operator works through the wizard, not just when they
+// reach the end and click "Activate & save schedule". This is what makes
+// progress survive a reload, a tab close, or switching pages mid-way.
+let autosaveTimer = null
+
+function scheduleAutosave() {
+  if (suppressAutosave.value || !settingsHydrated.value) return
+
+  clearTimeout(autosaveTimer)
+  draftSaveState.value = 'saving'
+
+  autosaveTimer = setTimeout(async () => {
+    try {
+      // activatedAt is deliberately left out of every autosave write.
+      // It should only ever change via activate() or cancelAutomation(),
+      // so a mid-wizard edit can never silently cancel (or fabricate) an
+      // already-active schedule. saveSettings() uses a merge write, so
+      // omitting the field here leaves whatever is already stored intact.
+      const { activatedAt, ...draft } = form
+
+      await saveSettings({
+        ...draft,
+        recipients: [...form.recipients]
+      })
+
+      draftSaveState.value = 'saved'
+    } catch (error) {
+      draftSaveState.value = 'error'
+    }
+  }, 700)
+}
+
+watch(form, scheduleAutosave, { deep: true })
+
+function selectScope(value) {
+  form.dataType = value
+  currentStep.value = 1
+}
+
+function goToStep(index) {
+  if (index <= currentStep.value) {
+    currentStep.value = index
+    return
   }
+
+  if (index === 2 && currentStep.value < 1) {
+    currentStep.value = 1
+    return
+  }
+
+  if (index === 3 && !form.recipients.length) {
+    currentStep.value = 2
+    return
+  }
+
+  currentStep.value = index
+}
+
+function addEmail() {
+  const email = newEmail.value.trim().toLowerCase()
+
+  if (!email) return
+
+  if (!email.includes('@')) {
+    alert('Please enter a valid email address.')
+    return
+  }
+
+  if (form.recipients.includes(email)) {
+    alert('That recipient is already on the list.')
+    newEmail.value = ''
+    return
+  }
+
+  form.recipients.push(email)
   newEmail.value = ''
 }
 
-const removeEmail = (idx) => {
-  form.recipients.splice(idx, 1)
+function removeEmail(index) {
+  form.recipients.splice(index, 1)
 }
 
-const saveMailingList = async () => {
-  await saveSettings({ ...form })
-  alert('Mailing list saved!')
+function loadMailingList(list) {
+  form.recipients = Array.isArray(list?.recipients)
+    ? [...list.recipients]
+    : []
 }
 
-const saveSettingsAndFinish = async () => {
-  const updatedForm = { ...form, activatedAt: new Date() }
-  await saveSettings(updatedForm)
-  activeAutomations.value = [{
-    id: 'global',
-    reportType: updatedForm.dataType,
-    frequency: updatedForm.frequency,
-    activatedAt: updatedForm.activatedAt,
-  }]
-  currentStep.value = 0
-  alert('Automation activated!')
-}
+async function saveCurrentMailingList() {
+  const name = mailingListName.value.trim()
 
-const handleCancelAutomation = async (id) => {
-  await cancelAutomationRemote(id)
-  activeAutomations.value = []
-  alert('Automation cancelled.')
-}
-
-// Helper: generate chart image as JPEG data URL (crisp and compact)
-async function generateChartImage(config, width = 1000, height = 500) {
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  const chart = new Chart(ctx, config)
-  await new Promise(resolve => setTimeout(resolve, 300))
-  const image = canvas.toDataURL('image/jpeg', 0.85)
-  chart.destroy()
-  return image
-}
-
-// Generate patient charts (always called)
-async function generatePatientCharts(data) {
-  const charts = []
-  if (!data.length) return charts
-
-  const procMap = new Map()
-  data.forEach(p => procMap.set(p.selectedProcedure, (procMap.get(p.selectedProcedure) || 0) + 1))
-  const topProcs = [...procMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const procLabels = topProcs.map(e => e[0])
-  const procValues = topProcs.map(e => e[1])
-
-  const countryMap = new Map()
-  data.forEach(p => countryMap.set(p.Country || 'Kenya', (countryMap.get(p.Country || 'Kenya') || 0) + 1))
-  const countryLabels = [...countryMap.keys()]
-  const countryValues = [...countryMap.values()]
-
-  const ageGroups = { '18-25': 0, '26-35': 0, '36-50': 0, '51+': 0 }
-  data.forEach(p => {
-    const age = Number(p.age)
-    if (age >= 18 && age <= 25) ageGroups['18-25']++
-    else if (age >= 26 && age <= 35) ageGroups['26-35']++
-    else if (age >= 36 && age <= 50) ageGroups['36-50']++
-    else if (age > 50) ageGroups['51+']++
-  })
-  const ageLabels = Object.keys(ageGroups)
-  const ageValues = Object.values(ageGroups)
-
-  charts.push({
-    title: 'Top Procedures',
-    image: await generateChartImage({
-      type: 'bar',
-      data: {
-        labels: procLabels,
-        datasets: [{
-          label: 'Requests',
-          data: procValues,
-          backgroundColor: '#6366f1',
-          borderRadius: 8,
-        }]
-      },
-      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    })
-  })
-
-  charts.push({
-    title: 'Country Distribution',
-    image: await generateChartImage({
-      type: 'pie',
-      data: {
-        labels: countryLabels,
-        datasets: [{
-          data: countryValues,
-          backgroundColor: ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16'],
-          borderWidth: 0
-        }]
-      },
-      options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
-    })
-  })
-
-  charts.push({
-    title: 'Age Distribution',
-    image: await generateChartImage({
-      type: 'bar',
-      data: {
-        labels: ageLabels,
-        datasets: [{
-          label: 'Patients',
-          data: ageValues,
-          backgroundColor: '#818cf8',
-          borderRadius: 8,
-        }]
-      },
-      options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    })
-  })
-
-  return charts
-}
-
-// Generate web charts
-async function generateWebCharts(data) {
-  const charts = []
-  if (!data) return charts
-
-  if (data.timeSeries && data.timeSeries.length > 0) {
-    charts.push({
-      title: 'Visitors Over Time',
-      image: await generateChartImage({
-        type: 'line',
-        data: {
-          labels: data.timeSeries.map(d => d.date),
-          datasets: [{
-            label: 'Active Users',
-            data: data.timeSeries.map(d => Number(d.activeUsers)),
-            fill: false,
-            borderColor: '#6366f1',
-            tension: 0.1,
-            pointBackgroundColor: '#6366f1'
-          }]
-        },
-        options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-      })
-    })
-  }
-
-  if (data.topCountries && data.topCountries.length > 0) {
-    charts.push({
-      title: 'Top Countries',
-      image: await generateChartImage({
-        type: 'pie',
-        data: {
-          labels: data.topCountries.map(c => c.country),
-          datasets: [{
-            data: data.topCountries.map(c => c.sessions),
-            backgroundColor: ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#84cc16'],
-            borderWidth: 0
-          }]
-        },
-        options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
-      })
-    })
-  }
-
-  if (data.trafficSources && data.trafficSources.length > 0) {
-    charts.push({
-      title: 'Traffic Sources',
-      image: await generateChartImage({
-        type: 'bar',
-        data: {
-          labels: data.trafficSources.map(s => s.source),
-          datasets: [{
-            label: 'Sessions',
-            data: data.trafficSources.map(s => s.sessions),
-            backgroundColor: '#818cf8',
-            borderRadius: 8,
-          }]
-        },
-        options: { responsive: false, animation: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-      })
-    })
-  }
-
-  if (data.deviceCategories && data.deviceCategories.length > 0) {
-    charts.push({
-      title: 'Device Breakdown',
-      image: await generateChartImage({
-        type: 'doughnut',
-        data: {
-          labels: data.deviceCategories.map(d => d.device),
-          datasets: [{
-            data: data.deviceCategories.map(d => d.sessions),
-            backgroundColor: ['#34d399','#60a5fa','#fbbf24'],
-            borderWidth: 0
-          }]
-        },
-        options: { responsive: false, animation: false, plugins: { legend: { position: 'bottom' } } }
-      })
-    })
-  }
-
-  return charts
-}
-
-const sendNow = async () => {
-  if (!form.recipients || form.recipients.length === 0) {
-    alert('Please add at least one recipient email.')
+  if (!name) {
+    alert('Enter a mailing list name.')
     return
   }
-  sendingNow.value = true
 
-  let reportType = 'Report'
-  let reportData = { summary: {}, tables: [], aiInsights: [], images: [] }
-  const filters = {
-    dateFrom: form.patientDateFrom || form.webDateFrom,
-    dateTo: form.patientDateTo || form.webDateTo,
+  if (!form.recipients.length) {
+    alert('Add at least one recipient before saving the list.')
+    return
   }
 
-  // Patient section
-  if (form.dataType === 'patient' || form.dataType === 'both') {
-    const rawPatients = patients.value || []
-    const mappedPatients = rawPatients.map(p => ({
-      procedure: p.selectedProcedure,
-      price: p.calculatedPrice,
-      bmi: p.bmi,
-      pastSurgeries: p.pastSurgeries,
-      isNonSurgical: p.isNonSurgical,
-      age: p.age,
-      country: p.Country,
-      createdDate: p.createdDate,
-    }))
+  try {
+    await saveMailingList(
+      name,
+      [...form.recipients]
+    )
 
-    reportData.summary.totalPatients = mappedPatients.length
+    mailingListName.value = ''
 
-    const patientInsights = generateDetailedInsights(mappedPatients)
-    if (patientInsights) {
-      reportData.aiInsights.push(
-        { title: 'Procedure Demand Surge', message: `${patientInsights.mostRequested} leads your database, accounting for ${Math.round((patientInsights.mostRequestedCount || 0) / patientInsights.total * 100)}% of total inquiries. Ensure resource and inventory optimization for this segment.` },
-        { title: 'Targeted Age Demographic', message: `The current dataset yields an average age of ${patientInsights.avgAge} years. The 26–35 bracket (${patientInsights.ageGroups['26-35']} patients) demonstrates the sharpest customer lifecycle conversion velocity.` },
-        { title: 'Care Classification Footprint', message: `${patientInsights.nonSurgPercent}% of inbound leads requested non-surgical alternatives. Adding tiered skin-tightening or injectables packaging could capture unrealized revenue.` },
-        { title: 'Geographic Footprint Opportunity', message: `The high concentration of submissions originates from ${patientInsights.countryDistribution[0]?.[0] || 'Kenya'}. Localized hyper-targeted clinical marketing and localized SEO focus will optimize conversion cost.` },
-        { title: 'Asset Conversion Strategy', message: `Average transaction pricing maps at KES ${new Intl.NumberFormat('en-KE').format(patientInsights.avgValue)}. Integrating flexible multi-installment healthcare financing structures could reduce drop-off.` },
-        { title: 'Patient Risk Profiling Matrix', message: `${patientInsights.highBmiCount} prospective clients present a calculated BMI ≥ 30.0, and ${patientInsights.pastSurgCount} note surgical backgrounds. Automated pre-anesthetic tracking flags are recommended.` }
-      )
+    alert('Mailing list saved successfully.')
+  } catch (error) {
+    alert(error?.message || 'Unable to save mailing list.')
+  }
+}
 
-      // Add patient analytics tables
-      if (patientInsights.topProcedures.length) {
+async function activate() {
+  if (!form.recipients.length) {
+    alert('Add at least one recipient before activating the schedule.')
+    currentStep.value = 2
+    return
+  }
+
+  try {
+    await saveSettings({
+      ...form,
+      recipients: [...form.recipients],
+      activatedAt: new Date()
+    })
+
+    alert('Automation schedule saved successfully.')
+
+    currentStep.value = 0
+  } catch (error) {
+    alert(
+      error?.message ||
+      'Unable to save the automation schedule.'
+    )
+  }
+}
+
+async function cancelAutomation() {
+  try {
+    await cancelRemote()
+
+    alert('Schedule cancelled successfully.')
+  } catch (error) {
+    alert(
+      error?.message ||
+      'Unable to cancel the schedule.'
+    )
+  }
+}
+
+function formatDate(value) {
+  if (!value) return '—'
+
+  let date
+
+  try {
+    if (value?.toDate) {
+      date = value.toDate()
+    } else {
+      date = new Date(value)
+    }
+  } catch {
+    return '—'
+  }
+
+  if (Number.isNaN(date.getTime())) {
+    return '—'
+  }
+
+  return date.toLocaleString('en-KE', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'Africa/Nairobi'
+  })
+}
+
+async function useGoogleAnalyticsRefreshForReport(dateFrom = '', dateTo = '') {
+  const params = new URLSearchParams()
+
+  if (dateFrom) params.set('dateFrom', dateFrom)
+  if (dateTo) params.set('dateTo', dateTo)
+
+  const query = params.toString() ? `?${params.toString()}` : ''
+  const response = await fetch(`/api/ga-data${query}`, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store'
+  })
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(data?.error || `GA refresh failed: ${response.status}`)
+  }
+
+  return data
+}
+
+async function sendNow() {
+  if (!form.recipients.length) {
+    alert('Add at least one recipient first.')
+    currentStep.value = 2
+    return
+  }
+
+  sending.value = true
+
+  try {
+    /*
+     * PATIENT DATA
+     */
+    const patientFilters = {
+      dateFrom: form.patientDateFrom,
+      dateTo: form.patientDateTo,
+
+      procedure:
+        form.procedureFilter === 'all'
+          ? ''
+          : form.procedureFilter,
+
+      country: form.countryFilter,
+
+      nonSurgical: '',
+      bmiHighRisk: false
+    }
+
+    const patientData =
+      form.dataType === 'web'
+        ? []
+        : generateReportData(patientFilters)
+
+    const reportData = {
+      summary: {},
+      timeSeries: [],
+      topPages: [],
+      topCountries: [],
+      trafficSources: [],
+      deviceCategories: [],
+      userTypes: [],
+      hourly: [],
+      tables: [],
+      aiInsights: [],
+      images: []
+    }
+
+    /*
+     * PATIENT REPORT
+     */
+    if (form.dataType !== 'web') {
+      const insights = generateDetailedInsights(patientData)
+
+      if (insights) {
+        reportData.summary = {
+          totalPatients: patientData.length,
+          avgAge: insights.avgAge,
+          avgBmi: insights.avgBmi,
+          nonSurgicalPercent: insights.nonSurgPercent,
+          totalQuotedValue: insights.totalValue,
+          avgQuoteValue: insights.avgValue,
+          highBmiCount: insights.highBmiCount,
+          priorSurgeryCount: insights.pastSurgCount,
+          avgWeight: insights.avgWeight,
+          avgHeight: insights.avgHeight
+        }
+
+        reportData.aiInsights.push(
+          {
+            title: 'Procedure demand',
+            message:
+              `${insights.mostRequested} is the leading request at ` +
+              `${insights.mostRequestedCount} of ${insights.total} records.`,
+            action:
+              'Align service capacity, content and lead follow-up around the strongest demand.'
+          },
+          {
+            title: 'Age mix',
+            message:
+              `Average patient age is ${insights.avgAge} years. ` +
+              `${insights.dominantAgeGroup} is the largest identifiable age segment.`,
+            action:
+              'Use the strongest demographic segment when prioritizing creative and campaign messaging.'
+          },
+          {
+            title: 'Non-surgical demand',
+            message:
+              `${insights.nonSurgPercent}% of records are non-surgical.`,
+            action:
+              'Consider using non-surgical treatments as lower-friction entry points into the clinic.'
+          },
+          {
+            title: 'Geographic footprint',
+            message:
+              `${insights.dominantCountry} accounts for ` +
+              `${insights.dominantCountryCount} of the captured records.`,
+            action:
+              'Prioritize localization, targeting and follow-up around the strongest geographic market.'
+          },
+          {
+            title: 'BMI profile',
+            message:
+              `${insights.highBmiCount} records have a BMI of 30 or higher.`,
+            action:
+              'Use this as a screening and clinical workflow signal rather than a standalone eligibility decision.'
+          },
+          {
+            title: 'Commercial value',
+            message:
+              `Average quoted value across the filtered cohort is KES ` +
+              `${Number(insights.avgValue).toLocaleString('en-KE', {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1
+              })}.`,
+            action:
+              'Track quoted value alongside lead volume to identify commercially meaningful demand.'
+          }
+        )
+
         reportData.tables.push({
           title: 'Top Procedures',
-          headers: ['Procedure', 'Leads'],
-          rows: patientInsights.topProcedures.map(([name, count]) => [name, count]),
+          headers: ['Procedure', 'Leads', 'Share'],
+          rows: insights.topProcedures.map(
+            ([procedure, count]) => [
+              procedure,
+              count,
+              `${((count / insights.total) * 100).toFixed(1)}%`
+            ]
+          )
         })
-      }
-      if (patientInsights.countryDistribution.length) {
+
         reportData.tables.push({
           title: 'Geographic Distribution',
-          headers: ['Country', 'Leads', 'Percent'],
-          rows: patientInsights.countryDistribution.map(([country, count]) => [country, count, `${Math.round(count / patientInsights.total * 100)}%`]),
+          headers: ['Country', 'Leads', 'Share'],
+          rows: insights.countryDistribution.map(
+            ([country, count]) => [
+              country,
+              count,
+              `${((count / insights.total) * 100).toFixed(1)}%`
+            ]
+          )
         })
       }
-      if (patientInsights.monthlyTrend.length) {
+
+      if (form.includePatientData) {
         reportData.tables.push({
-          title: 'Monthly Registrations',
-          headers: ['Month', 'New Patients'],
-          rows: patientInsights.monthlyTrend.map(([month, count]) => [month, count]),
+          title: 'Patient Records',
+          headers: [
+            'Name',
+            'Procedure',
+            'Age',
+            'Country',
+            'BMI',
+            'Price'
+          ],
+          rows: patientData.slice(0, 100).map(patient => [
+            patient.name,
+            patient.procedure,
+            patient.age,
+            patient.country,
+            patient.bmi,
+            patient.price
+          ])
         })
       }
     }
 
-    // Always generate patient charts
-    reportData.images.push(...(await generatePatientCharts(rawPatients)))
+    /*
+     * WEBSITE DATA
+     */
+    if (form.dataType !== 'patient') {
+      if (!gaData.value) {
+        throw new Error(
+          'Website analytics is not available yet.'
+        )
+      }
 
-    // Only include detailed patient table if checkbox selected
-    if (form.includePatientData) {
-      reportData.tables.push({
-        title: 'Patient Records',
-        headers: ['Name', 'Procedure', 'Age', 'Price'],
-        rows: rawPatients.slice(0, 10).map(p => [p.name, p.selectedProcedure, p.age, p.calculatedPrice]),
-      })
-    }
+      // Refresh GA data for the selected web reporting period before building
+      // the report. When no web dates are selected, the existing dashboard data
+      // is reused.
+      if (form.webDateFrom || form.webDateTo) {
+        const refreshed = await useGoogleAnalyticsRefreshForReport(
+          form.webDateFrom,
+          form.webDateTo
+        )
 
-    reportType = form.dataType === 'both' ? 'Patient & Web Report' : 'Patient Report'
-  }
+        if (refreshed) {
+          gaData.value = refreshed
+        }
+      }
 
-  // Web section
-  if (form.dataType === 'web' || form.dataType === 'both') {
-    if (gaData.value) {
       const summary = gaData.value.summary || {}
-      reportData.summary.totalUsers = summary.totalUsers
-      reportData.summary.sessions = summary.sessions
-      reportData.summary.pageViews = summary.screenPageViews
-      reportData.summary.bounceRate = summary.bounceRate
+
+      reportData.timeSeries = Array.isArray(gaData.value.timeSeries)
+        ? [...gaData.value.timeSeries]
+        : []
+
+      reportData.topPages = Array.isArray(gaData.value.topPages)
+        ? [...gaData.value.topPages]
+        : []
+
+      reportData.topCountries = Array.isArray(gaData.value.topCountries)
+        ? [...gaData.value.topCountries]
+        : []
+
+      reportData.trafficSources = Array.isArray(gaData.value.trafficSources)
+        ? [...gaData.value.trafficSources]
+        : []
+
+      reportData.deviceCategories = Array.isArray(gaData.value.deviceCategories)
+        ? [...gaData.value.deviceCategories]
+        : []
+
+      reportData.userTypes = Array.isArray(gaData.value.userTypes)
+        ? [...gaData.value.userTypes]
+        : []
+
+      reportData.hourly = Array.isArray(gaData.value.hourly)
+        ? [...gaData.value.hourly]
+        : []
+
+      reportData.summary = {
+        ...reportData.summary,
+
+        totalUsers: Number(summary.totalUsers || 0),
+        sessions: Number(summary.sessions || 0),
+        pageViews: Number(summary.screenPageViews || 0),
+
+        bounceRate: Number(
+          Number(summary.bounceRate || 0).toFixed(1)
+        ),
+
+        engagementRate: Number(
+          Number(summary.engagementRate || 0).toFixed(1)
+        )
+      }
+
+      const trafficSource =
+        gaData.value.trafficSources?.[0]?.sessionSource ||
+        'Direct'
+
+      const bestPage =
+        gaData.value.topPages?.[0]?.pagePath ||
+        '/'
+
+      const mobileSessions =
+        gaData.value.deviceCategories?.find(
+          device => device.deviceCategory === 'mobile'
+        )?.sessions || 0
+
+      const mobilePercent =
+        (
+          (100 * Number(mobileSessions)) /
+          Math.max(1, Number(summary.sessions || 0))
+        ).toFixed(1)
+
+      reportData.aiInsights.push(
+        {
+          title: 'Web acquisition',
+          message:
+            `${trafficSource} is currently the leading traffic source.`,
+          action:
+            'Maintain the strongest acquisition channel while gradually diversifying dependency.'
+        },
+        {
+          title: 'Best page',
+          message:
+            `"${bestPage}" is the most visited page in the available dataset.`,
+          action:
+            'Prioritize CTA clarity, lead capture and content quality on this page.'
+        },
+        {
+          title: 'Mobile',
+          message:
+            `Mobile contributes ${mobilePercent}% of sessions.`,
+          action:
+            'Treat mobile conversion quality as a primary website KPI.'
+        },
+        {
+          title: 'Engagement health',
+          message:
+            `The current bounce rate is ${Number(summary.bounceRate || 0).toFixed(1)}%.`,
+          action:
+            Number(summary.bounceRate || 0) > 50
+              ? 'Review landing-page relevance, page speed and content alignment.'
+              : 'Continue monitoring while improving pages with the highest drop-off.'
+        }
+      )
 
       reportData.tables.push({
         title: 'Top Pages',
-        headers: ['Page', 'Views'],
-        rows: (gaData.value.topPages || []).map(p => [p.pagePath, p.pageviews]),
+        headers: [
+          'Page',
+          'Views',
+          'Sessions',
+          'Bounce'
+        ],
+        rows: (gaData.value.topPages || []).map(page => [
+          page.pagePath,
+          page.screenPageViews,
+          page.sessions,
+          `${Number(page.bounceRate || 0).toFixed(1)}%`
+        ])
       })
+
       reportData.tables.push({
         title: 'Traffic Sources',
-        headers: ['Source', 'Sessions'],
-        rows: (gaData.value.trafficSources || []).map(s => [s.source, s.sessions]),
+        headers: [
+          'Source',
+          'Sessions',
+          'Active Users'
+        ],
+        rows: (gaData.value.trafficSources || []).map(source => [
+          source.sessionSource,
+          source.sessions,
+          source.activeUsers
+        ])
       })
-
-      reportData.aiInsights.push(
-        { title: 'Geographic Focus', message: `The majority of your traffic comes from ${gaData.value.topCountries?.[0]?.country || 'Kenya'}. Consider localized content and targeted ads for this region.` },
-        { title: 'Top Performing Page', message: `"${gaData.value.topPages?.[0]?.pagePath || 'Home'}" is your most visited page. Ensure it has clear CTAs and fast loading times to convert visitors.` },
-        { title: 'Traffic Acquisition', message: `Most sessions originate from ${gaData.value.trafficSources?.[0]?.source || 'Direct'}. Invest more in this channel or diversify to reduce dependency.` },
-        { title: 'Mobile Experience', message: `${Math.round((gaData.value.deviceCategories?.find(d=>d.device==='mobile')?.sessions || 0) / (summary.sessions || 1) * 100)}% of sessions come from mobile devices. Optimize mobile UX to reduce bounce and improve engagement.` },
-        { title: 'Engagement Health', message: `Bounce rate is ${summary.bounceRate}%. ${Number(summary.bounceRate) > 50 ? 'Consider improving content relevance or page speed.' : 'You are doing well, keep monitoring.'}` },
-        { title: 'Content Strategy', message: `Your average session duration is ${formatDuration(summary.averageSessionDuration)}. Longer sessions indicate strong content engagement.` }
-      )
-
-      reportData.images.push(...(await generateWebCharts(gaData.value)))
-
-      if (form.dataType === 'web') reportType = 'Web Analytics Report'
-    } else {
-      alert('Web data not available yet. Please try again later.')
-      sendingNow.value = false
-      return
     }
+
+    const reportType =
+      form.dataType === 'both'
+        ? 'Patient & Web Report'
+        : form.dataType === 'web'
+          ? 'Web Analytics Report'
+          : 'Patient Report'
+
+    const result = await sendReportEmail(
+      [...form.recipients],
+      reportData,
+      reportType,
+      {
+        dateFrom:
+          form.patientDateFrom ||
+          form.webDateFrom ||
+          '',
+        dateTo:
+          form.patientDateTo ||
+          form.webDateTo ||
+          ''
+      }
+    )
+
+    if (!result.success) {
+      throw new Error(
+        result.error ||
+        'The report could not be sent.'
+      )
+    }
+
+    alert('Report sent successfully.')
+  } catch (error) {
+    alert(
+      `Report failed: ${
+        error?.message ||
+        'Unknown error'
+      }`
+    )
+  } finally {
+    sending.value = false
   }
-
-  const result = await sendReportEmail(form.recipients, reportData, reportType, filters)
-  sendingNow.value = false
-  if (result.success) {
-    alert('Report sent successfully!')
-  } else {
-    alert('Failed to send report: ' + result.error)
-  }
 }
 
-function formatDuration(seconds) {
-  if (!seconds) return '0s'
-  const sec = Number(seconds)
-  const mins = Math.floor(sec / 60)
-  const remainingSec = Math.round(sec % 60)
-  return `${mins}m ${remainingSec}s`
-}
+onMounted(async () => {
+  await authReady
 
-function formatDate(date) {
-  if (!date) return '—'
-  return new Date(date).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Nairobi' })
-}
+  // Authentication is fully restored before any Firestore listeners start.
+  // This prevents startup reads from running against a null/partial user.
+  await Promise.all([
+    loadSettings(),
+    loadEmailLogs(),
+    loadMailingLists()
+  ])
+})
+
+onUnmounted(() => {
+  clearTimeout(autosaveTimer)
+  cleanup()
+})
 </script>
 
 <style scoped>
-.slide-fade-enter-active {
-  transition: all 0.3s ease;
+.label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.slide-fade-leave-active {
-  transition: all 0.1s ease;
+
+.field {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  padding: 0.78rem 0.9rem;
+  outline: none;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.875rem;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
 }
-.slide-fade-enter-from {
-  transform: translateX(30px);
-  opacity: 0;
+
+.field::placeholder {
+  color: #94a3b8;
 }
-.slide-fade-leave-to {
-  transform: translateX(-30px);
-  opacity: 0;
+
+.field:hover {
+  border-color: #cbd5e1;
+}
+
+.field:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+}
+
+.stat-card {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.85rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1.25rem;
+  background: #fff;
+  padding: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.stat-icon {
+  display: flex;
+  height: 2.7rem;
+  width: 2.7rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.9rem;
+}
+
+.stat-label {
+  color: #94a3b8;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.stat-value {
+  margin-top: 0.2rem;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-kicker {
+  color: #94a3b8;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.step-nav {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.7rem;
+  border: 1px solid;
+  border-radius: 1rem;
+  padding: 0.65rem;
+  text-align: left;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.scope-card {
+  min-height: 230px;
+  border-width: 2px;
+  border-radius: 1.4rem;
+  padding: 1.25rem;
+  text-align: left;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.btn-primary,
+.btn-secondary,
+.btn-success {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 0.9rem;
+  padding: 0.78rem 1rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.btn-primary {
+  color: #fff;
+  background: #4f46e5;
+  box-shadow: 0 8px 20px rgba(79, 70, 229, 0.18);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-success:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-secondary {
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.btn-success {
+  color: #fff;
+  background: #059669;
+  box-shadow: 0 8px 20px rgba(5, 150, 105, 0.18);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #047857;
+  transform: translateY(-1px);
+}
+
+.side-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 1.5rem;
+  background: #fff;
+  padding: 1.25rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+
+.mini-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.9rem;
+  padding: 0.7rem 0.8rem;
+  background: #f8fafc;
+}
+
+.mini-metric span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.mini-metric strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 0.75rem 0;
+}
+
+.config-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.config-row span {
+  color: #64748b;
+  font-size: 0.76rem;
+}
+
+.config-row strong {
+  max-width: 55%;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-label {
+  color: #64748b;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.preview-value {
+  margin-top: 0.35rem;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.table-head {
+  padding: 0.8rem 1rem;
+  color: #64748b;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.table-cell {
+  padding: 0.9rem 1rem;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .scope-card {
+    min-height: auto;
+  }
+
+  .step-nav {
+    padding: 0.55rem;
+  }
 }
 </style>
