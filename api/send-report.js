@@ -255,7 +255,7 @@ function dedupeInsights(insights) {
 |--------------------------------------------------------------------------
 */
 
-function addHeader(doc, reportType, periodText, generatedAt) {
+function addHeader(doc, reportType, periodText, generatedAt, subtitle) {
     doc.setFillColor(...PRIMARY);
     doc.rect(0, 0, PAGE_WIDTH, 34, 'F');
 
@@ -266,7 +266,11 @@ function addHeader(doc, reportType, periodText, generatedAt) {
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
-    doc.text('Website Intelligence & Management Analytics', MARGIN, 18);
+    doc.text(
+        escapeText(subtitle || 'Website Intelligence & Management Analytics'),
+        MARGIN,
+        18
+    );
     doc.text(`Generated: ${generatedAt}`, MARGIN, 24);
     doc.text(`Period: ${periodText}`, MARGIN, 30);
 
@@ -280,7 +284,7 @@ function addHeader(doc, reportType, periodText, generatedAt) {
     );
 }
 
-function addFooter(doc) {
+function addFooter(doc, footerLabel) {
     const pages = doc.getNumberOfPages();
 
     for (let page = 1; page <= pages; page += 1) {
@@ -300,7 +304,10 @@ function addFooter(doc) {
         doc.setTextColor(...MUTED);
 
         doc.text(
-            'Dr. JP Ogalo Clinic · Internal Website Intelligence Report',
+            escapeText(
+                footerLabel ||
+                'Dr. JP Ogalo Clinic · Internal Website Intelligence Report'
+            ),
             MARGIN,
             292
         );
@@ -394,11 +401,25 @@ function drawMetricCard(
     );
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
+
+    const escapedValue = escapeText(value);
+    const availableValueWidth = width - 14;
+
+    let valueFontSize = 15;
+    doc.setFontSize(valueFontSize);
+
+    while (
+        valueFontSize > 9 &&
+        doc.getTextWidth(escapedValue) > availableValueWidth
+    ) {
+        valueFontSize -= 1;
+        doc.setFontSize(valueFontSize);
+    }
+
     doc.setTextColor(...PRIMARY);
 
     doc.text(
-        escapeText(value),
+        escapedValue,
         x + 7,
         y + 16
     );
@@ -507,6 +528,94 @@ function addKpiDashboard(doc, analytics, y) {
     return y + cardHeight * 2 + gap + 8;
 }
 
+function addPatientKpiDashboard(doc, analytics, y) {
+    y = addSectionTitle(
+        doc,
+        'Patient Executive KPI Dashboard',
+        y
+    );
+
+    const gap = 4;
+    const cardWidth = (CONTENT_WIDTH - gap * 3) / 4;
+    const cardHeight = 28;
+
+    const cards = [
+        {
+            label: 'Total Patients',
+            value: formatNumber(analytics.total),
+            color: ACCENT,
+            note: `${formatNumber(analytics.proceduresCount)} procedure type(s)`,
+        },
+        {
+            label: 'Avg Age',
+            value: analytics.avgAge ? `${formatNumber(analytics.avgAge, 1)} yrs` : 'N/A',
+            color: WARNING,
+            note: analytics.dominantAgeGroup
+                ? `${safeLabel(analytics.dominantAgeGroup[0], 18)} dominant`
+                : 'No age data',
+        },
+        {
+            label: 'Avg BMI',
+            value: analytics.avgBmi ? formatNumber(analytics.avgBmi, 1) : 'N/A',
+            color: INFO,
+            note: analytics.dominantBmiCategory
+                ? safeLabel(analytics.dominantBmiCategory[0], 20)
+                : 'No BMI data',
+        },
+        {
+            label: 'Non-Surgical',
+            value: formatPercent(analytics.nonSurgPercent),
+            color: SUCCESS,
+            note: 'Share of records',
+        },
+        {
+            label: 'Avg Quoted Value',
+            value: formatKES(analytics.avgValue),
+            color: PURPLE,
+            note: 'Per record',
+        },
+        {
+            label: 'Pipeline Value',
+            value: formatKES(analytics.totalValue),
+            color: ACCENT,
+            note: 'Combined quoted value',
+        },
+        {
+            label: 'Prior Surgery',
+            value: formatPercent(analytics.pastSurgPercent),
+            color: DANGER,
+            note: 'History indicated',
+        },
+        {
+            label: 'Top Procedure',
+            value: safeLabel(analytics.topProcedure?.[0] || 'N/A', 20),
+            color: SUCCESS,
+            note: analytics.topProcedure
+                ? `${formatNumber(analytics.topProcedure[1])} record(s)`
+                : '',
+        },
+    ];
+
+    cards.forEach((card, index) => {
+        const row = Math.floor(index / 4);
+        const column = index % 4;
+
+        drawMetricCard(
+            doc,
+            MARGIN + column * (cardWidth + gap),
+            y + row * (cardHeight + gap),
+            cardWidth,
+            cardHeight,
+            card.label,
+            card.value,
+            card.color,
+            card.note
+        );
+    });
+
+    return y + cardHeight * 2 + gap + 8;
+}
+
 /*
 |--------------------------------------------------------------------------
 | DATA NORMALISATION
@@ -518,6 +627,12 @@ function normalizeReportData(reportData = {}) {
 
     return {
         summary,
+
+        patientAnalytics:
+            reportData.patientAnalytics &&
+                typeof reportData.patientAnalytics === 'object'
+                ? reportData.patientAnalytics
+                : null,
 
         timeSeries: Array.isArray(reportData.timeSeries)
             ? reportData.timeSeries
@@ -559,6 +674,242 @@ function normalizeReportData(reportData = {}) {
             ? reportData.tables
             : [],
     };
+}
+
+/*
+|--------------------------------------------------------------------------
+| PATIENT ANALYTICS ENGINE
+|--------------------------------------------------------------------------
+*/
+
+function calculatePatientAnalytics(patientAnalytics) {
+    if (!patientAnalytics || !number(patientAnalytics.total)) {
+        return null;
+    }
+
+    const total = number(patientAnalytics.total);
+
+    const procedures = Array.isArray(patientAnalytics.procedures)
+        ? patientAnalytics.procedures
+        : [];
+
+    const countries = Array.isArray(patientAnalytics.countries)
+        ? patientAnalytics.countries
+        : [];
+
+    const procedureValueBreakdown = Array.isArray(
+        patientAnalytics.procedureValueBreakdown
+    )
+        ? patientAnalytics.procedureValueBreakdown
+        : [];
+
+    const ageGroups = patientAnalytics.ageGroups || {};
+    const bmiCategories = patientAnalytics.bmiCategories || {};
+
+    const monthlyTrend = Array.isArray(patientAnalytics.monthlyTrend)
+        ? patientAnalytics.monthlyTrend
+        : [];
+
+    const topProcedure = procedures[0] || null;
+    const topProcedureShare = topProcedure
+        ? pct(topProcedure[1], total)
+        : 0;
+
+    const top3ProcedureShare = pct(
+        procedures.slice(0, 3).reduce((sum, [, count]) => sum + number(count), 0),
+        total
+    );
+
+    const topCountry = countries[0] || null;
+    const topCountryShare = topCountry
+        ? pct(topCountry[1], total)
+        : 0;
+
+    const top3CountryShare = pct(
+        countries.slice(0, 3).reduce((sum, [, count]) => sum + number(count), 0),
+        total
+    );
+
+    const ageGroupEntries = Object.entries(ageGroups)
+        .filter(([, count]) => number(count) > 0)
+        .sort((a, b) => number(b[1]) - number(a[1]));
+
+    const dominantAgeGroup = ageGroupEntries[0] || null;
+    const dominantAgeGroupShare = dominantAgeGroup
+        ? pct(dominantAgeGroup[1], total)
+        : 0;
+
+    const bmiCategoryEntries = Object.entries(bmiCategories)
+        .filter(([, count]) => number(count) > 0)
+        .sort((a, b) => number(b[1]) - number(a[1]));
+
+    const bmiMeasuredCount = bmiCategoryEntries.reduce(
+        (sum, [, count]) => sum + number(count),
+        0
+    );
+
+    const dominantBmiCategory = bmiCategoryEntries[0] || null;
+
+    const obeseCount = number(bmiCategories['Obese (30+)']);
+    const obeseShareOfMeasured = bmiMeasuredCount
+        ? pct(obeseCount, bmiMeasuredCount)
+        : 0;
+
+    // Highest-value procedure by average quote, requiring at least 2
+    // records so a single outlier quote doesn't dominate the finding.
+    const reliableValueBreakdown = procedureValueBreakdown.filter(
+        item => number(item.count) >= 2
+    );
+
+    const highestValueProcedure =
+        reliableValueBreakdown[0] || procedureValueBreakdown[0] || null;
+
+    const trend = monthlyTrend.length >= 4
+        ? calculateMonthlyTrend(monthlyTrend)
+        : { change: 0, direction: 'stable', firstAverage: 0, secondAverage: 0 };
+
+    const sortedByVolume = [...monthlyTrend].sort(
+        (a, b) => number(b[1]) - number(a[1])
+    );
+
+    const bestMonth = sortedByVolume[0] || null;
+    const worstMonth = sortedByVolume[sortedByVolume.length - 1] || null;
+
+    return {
+        total,
+
+        avgAge: number(patientAnalytics.avgAge),
+        avgBmi: number(patientAnalytics.avgBmi),
+        avgWeight: number(patientAnalytics.avgWeight),
+        avgHeight: number(patientAnalytics.avgHeight),
+
+        nonSurgCount: number(patientAnalytics.nonSurgCount),
+        nonSurgPercent: number(patientAnalytics.nonSurgPercent),
+
+        totalValue: number(patientAnalytics.totalValue),
+        avgValue: number(patientAnalytics.avgValue),
+
+        highBmiCount: number(patientAnalytics.highBmiCount),
+        pastSurgCount: number(patientAnalytics.pastSurgCount),
+        pastSurgPercent: pct(patientAnalytics.pastSurgCount, total),
+
+        procedures,
+        proceduresCount: procedures.length,
+        topProcedure,
+        topProcedureShare,
+        top3ProcedureShare,
+
+        procedureValueBreakdown,
+        highestValueProcedure,
+
+        countries,
+        countriesCount: countries.length,
+        topCountry,
+        topCountryShare,
+        top3CountryShare,
+
+        ageGroupEntries,
+        dominantAgeGroup,
+        dominantAgeGroupShare,
+
+        bmiCategoryEntries,
+        bmiMeasuredCount,
+        dominantBmiCategory,
+        obeseCount,
+        obeseShareOfMeasured,
+
+        monthlyTrend,
+        trend,
+        bestMonth,
+        worstMonth,
+    };
+}
+
+function calculateMonthlyTrend(monthlyTrend) {
+    const split = Math.floor(monthlyTrend.length / 2);
+
+    const first = monthlyTrend.slice(0, split);
+    const second = monthlyTrend.slice(split);
+
+    const firstAverage =
+        first.reduce((sum, [, count]) => sum + number(count), 0) /
+        Math.max(first.length, 1);
+
+    const secondAverage =
+        second.reduce((sum, [, count]) => sum + number(count), 0) /
+        Math.max(second.length, 1);
+
+    const change =
+        firstAverage > 0
+            ? ((secondAverage - firstAverage) / firstAverage) * 100
+            : 0;
+
+    let direction = 'stable';
+
+    if (change > 15) {
+        direction = 'growth';
+    } else if (change < -15) {
+        direction = 'decline';
+    }
+
+    return { change, direction, firstAverage, secondAverage };
+}
+
+function formatMonthLabel(key) {
+    const [year, month] = String(key || '').split('-');
+
+    if (!year || !month) return escapeText(key);
+
+    const date = new Date(`${year}-${month}-01T00:00:00`);
+
+    if (Number.isNaN(date.getTime())) return escapeText(key);
+
+    return date.toLocaleDateString('en-KE', {
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Africa/Nairobi',
+    });
+}
+
+function formatKES(value) {
+    return `KES ${formatNumber(value, 0)}`;
+}
+
+function buildPatientOverviewNarrative(analytics) {
+    const sentences = [];
+
+    sentences.push(
+        `The clinic captured ${formatNumber(
+            analytics.total
+        )} patient record(s) in the reporting period, spanning ${formatNumber(
+            analytics.proceduresCount
+        )} procedure type(s) across ${formatNumber(
+            analytics.countriesCount
+        )} identifiable market(s).`
+    );
+
+    if (analytics.topProcedure) {
+        sentences.push(
+            `"${escapeText(
+                analytics.topProcedure[0]
+            )}" is the leading procedure at ${formatPercent(
+                analytics.topProcedureShare
+            )} of records, with a combined quoted pipeline value across the ` +
+            `cohort of approximately ${formatKES(analytics.totalValue)}.`
+        );
+    }
+
+    if (analytics.topCountry) {
+        sentences.push(
+            `${escapeText(
+                analytics.topCountry[0]
+            )} is the strongest identifiable market at ${formatPercent(
+                analytics.topCountryShare
+            )} of records.`
+        );
+    }
+
+    return sentences.join(' ');
 }
 
 /*
@@ -1159,6 +1510,444 @@ function detectAnomalies(timeSeries) {
             std >= 2.5
         );
     });
+}
+
+/*
+|--------------------------------------------------------------------------
+| PATIENT DETERMINISTIC AI INSIGHTS
+|--------------------------------------------------------------------------
+*/
+
+function buildPatientAIInsights(analytics) {
+    const insights = [];
+
+    const {
+        total,
+        avgAge,
+        avgBmi,
+        avgWeight,
+        avgHeight,
+        nonSurgPercent,
+        totalValue,
+        avgValue,
+        highBmiCount,
+        pastSurgPercent,
+        procedures,
+        proceduresCount,
+        topProcedure,
+        topProcedureShare,
+        top3ProcedureShare,
+        procedureValueBreakdown,
+        highestValueProcedure,
+        countries,
+        countriesCount,
+        topCountry,
+        topCountryShare,
+        top3CountryShare,
+        dominantAgeGroup,
+        dominantAgeGroupShare,
+        bmiMeasuredCount,
+        dominantBmiCategory,
+        obeseCount,
+        obeseShareOfMeasured,
+        monthlyTrend,
+        trend,
+        bestMonth,
+        worstMonth,
+    } = analytics;
+
+    /*
+    |--------------------------------------------------------------------------
+    | VOLUME & PIPELINE OVERVIEW
+    |--------------------------------------------------------------------------
+    */
+
+    insights.push({
+        priority: 'medium',
+        title: 'Patient Pipeline Overview',
+        message:
+            `The clinic captured ${formatNumber(total)} patient record(s) across ${formatNumber(
+                proceduresCount
+            )} distinct procedure type(s) and ${formatNumber(
+                countriesCount
+            )} identifiable market(s) in the reporting period.`,
+        action:
+            'Use this as the baseline pipeline volume when planning capacity, staffing and marketing spend.',
+    });
+
+    if (total > 0 && avgValue > 0) {
+        insights.push({
+            priority: 'high',
+            title: 'Commercial Pipeline Value',
+            message:
+                `The filtered cohort represents an average quoted value of ${formatKES(
+                    avgValue
+                )} per record, for a combined pipeline value of approximately ${formatKES(
+                    totalValue
+                )}.`,
+            action:
+                'Track quoted value alongside lead volume so commercially meaningful demand is weighted, not just lead count.',
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PROCEDURE DEMAND
+    |--------------------------------------------------------------------------
+    */
+
+    if (topProcedure) {
+        insights.push({
+            priority: topProcedureShare >= 30 ? 'high' : 'medium',
+            title: 'Leading Procedure Demand',
+            message:
+                `"${escapeText(topProcedure[0])}" is the single most requested procedure, ` +
+                `accounting for ${formatNumber(topProcedure[1])} of ${formatNumber(
+                    total
+                )} records (${formatPercent(topProcedureShare)}).`,
+            action:
+                'Align service capacity, theatre scheduling and follow-up workflows around this demand pattern.',
+        });
+    }
+
+    if (top3ProcedureShare >= 60) {
+        insights.push({
+            priority: 'high',
+            title: 'Procedure Demand Concentration',
+            message:
+                `The three most requested procedures together account for approximately ${formatPercent(
+                    top3ProcedureShare
+                )} of all records.`,
+            action:
+                'Concentrated demand simplifies staffing and inventory planning, but also raises exposure if demand for those procedures shifts. Track secondary procedures for early diversification signals.',
+        });
+    } else if (proceduresCount >= 6) {
+        insights.push({
+            priority: 'positive',
+            title: 'Diversified Procedure Mix',
+            message:
+                `Demand is spread across ${formatNumber(
+                    proceduresCount
+                )} distinct procedure types, with the top three accounting for only ${formatPercent(
+                    top3ProcedureShare
+                )} of records.`,
+            action:
+                'A diversified mix reduces single-procedure dependency. Continue tracking mix shifts month to month.',
+        });
+    }
+
+    procedures.slice(1, 4).forEach(([procedure, count]) => {
+        const share = pct(count, total);
+
+        if (share < 5) return;
+
+        insights.push({
+            priority: 'medium',
+            title: 'Secondary Procedure Demand',
+            message:
+                `"${escapeText(procedure)}" accounts for ${formatNumber(
+                    count
+                )} record(s), approximately ${formatPercent(share)} of the cohort.`,
+            action:
+                'Consider this procedure for targeted content and follow-up campaigns alongside the leading service.',
+        });
+    });
+
+    if (highestValueProcedure) {
+        insights.push({
+            priority: 'high',
+            title: 'Highest-Value Procedure',
+            message:
+                `"${escapeText(
+                    highestValueProcedure.procedure
+                )}" carries the highest average quoted value at ${formatKES(
+                    highestValueProcedure.avgValue
+                )} across ${formatNumber(highestValueProcedure.count)} record(s).`,
+            action:
+                'Prioritize consultation follow-up speed and conversion effort on this procedure given its outsized commercial value.',
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | AGE PROFILE
+    |--------------------------------------------------------------------------
+    */
+
+    if (avgAge > 0) {
+        insights.push({
+            priority: 'medium',
+            title: 'Patient Age Profile',
+            message:
+                `Average patient age is ${formatNumber(avgAge, 1)} years.` +
+                (dominantAgeGroup
+                    ? ` The ${escapeText(
+                        dominantAgeGroup[0]
+                    )} segment is the largest identifiable age group at approximately ${formatPercent(
+                        dominantAgeGroupShare
+                    )} of records with a known age.`
+                    : ''),
+            action:
+                'Use the dominant demographic segment to prioritize creative direction, messaging tone and campaign targeting.',
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLINICAL / BMI PROFILE
+    |--------------------------------------------------------------------------
+    */
+
+    if (avgBmi > 0) {
+        insights.push({
+            priority: 'medium',
+            title: 'Average Clinical Profile',
+            message:
+                `Average BMI across records with available data is ${formatNumber(
+                    avgBmi,
+                    1
+                )}` +
+                (avgWeight > 0
+                    ? `, with an average weight of ${formatNumber(avgWeight, 1)} kg`
+                    : '') +
+                (avgHeight > 0
+                    ? ` and average height of ${formatNumber(avgHeight, 1)} cm.`
+                    : '.'),
+            action:
+                'Use as a general screening baseline only; individual clinical assessment always takes precedence.',
+        });
+    }
+
+    if (highBmiCount > 0 && bmiMeasuredCount > 0) {
+        insights.push({
+            priority: obeseShareOfMeasured >= 40 ? 'high' : 'medium',
+            title: 'BMI Screening Signal',
+            message:
+                `${formatNumber(
+                    highBmiCount
+                )} record(s) with available BMI data (${formatPercent(
+                    obeseShareOfMeasured
+                )} of the ${formatNumber(bmiMeasuredCount)} measured) fall at or above a BMI of 30.`,
+            action:
+                'Use as a pre-consultation screening and clinical workflow signal, not a standalone eligibility decision.',
+        });
+    } else if (bmiMeasuredCount > 0) {
+        insights.push({
+            priority: 'positive',
+            title: 'BMI Profile Within Typical Range',
+            message:
+                `Across ${formatNumber(
+                    bmiMeasuredCount
+                )} record(s) with available BMI data, none reached a BMI of 30 or higher.`,
+            action:
+                'Continue routine BMI capture at intake to keep this signal reliable as volume grows.',
+        });
+    }
+
+    if (dominantBmiCategory && bmiMeasuredCount > 0) {
+        insights.push({
+            priority: 'medium',
+            title: 'Dominant BMI Category',
+            message:
+                `"${escapeText(
+                    dominantBmiCategory[0]
+                )}" is the largest BMI category, covering ${formatNumber(
+                    dominantBmiCategory[1]
+                )} of ${formatNumber(bmiMeasuredCount)} measured record(s).`,
+            action:
+                'Factor the dominant BMI band into pre-operative planning and consultation resourcing.',
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | NON-SURGICAL & PRIOR-SURGERY MIX
+    |--------------------------------------------------------------------------
+    */
+
+    if (nonSurgPercent >= 20) {
+        insights.push({
+            priority: 'positive',
+            title: 'Meaningful Non-Surgical Demand',
+            message:
+                `Approximately ${formatPercent(
+                    nonSurgPercent
+                )} of records are for non-surgical treatments.`,
+            action:
+                'Use non-surgical treatments as a lower-friction entry point into the clinic and a pathway toward future surgical conversion.',
+        });
+    } else if (nonSurgPercent > 0) {
+        insights.push({
+            priority: 'medium',
+            title: 'Limited Non-Surgical Demand',
+            message:
+                `Only approximately ${formatPercent(
+                    nonSurgPercent
+                )} of records are for non-surgical treatments; the remainder are surgical.`,
+            action:
+                'Consider whether non-surgical offerings are under-promoted relative to demand, particularly as a lead-generation channel.',
+        });
+    }
+
+    if (pastSurgPercent >= 15) {
+        insights.push({
+            priority: 'medium',
+            title: 'Prior-Surgery History Signal',
+            message:
+                `Approximately ${formatPercent(
+                    pastSurgPercent
+                )} of records indicate a history of previous surgery.`,
+            action:
+                'Flag revision or prior-surgery cases early for additional clinical review and realistic expectation-setting.',
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | GEOGRAPHIC FOOTPRINT
+    |--------------------------------------------------------------------------
+    */
+
+    if (topCountry) {
+        insights.push({
+            priority: topCountryShare > 85 ? 'high' : 'medium',
+            title: 'Geographic Market Concentration',
+            message:
+                `${escapeText(
+                    topCountry[0]
+                )} accounts for approximately ${formatPercent(
+                    topCountryShare
+                )} of captured records (${formatNumber(topCountry[1])} of ${formatNumber(
+                    total
+                )}).`,
+            action:
+                topCountryShare > 85
+                    ? 'Protect the core market while testing targeted, lower-cost campaigns in secondary markets to reduce single-market exposure.'
+                    : 'Continue strengthening the leading market while monitoring emerging geographies for early growth signals.',
+        });
+    }
+
+    if (countriesCount >= 4 && top3CountryShare < 90) {
+        insights.push({
+            priority: 'positive',
+            title: 'International Reach',
+            message:
+                `Records were captured from ${formatNumber(
+                    countriesCount
+                )} distinct countries, with the top three markets covering ${formatPercent(
+                    top3CountryShare
+                )} of the cohort.`,
+            action:
+                'Consider market-specific landing pages or messaging for the strongest secondary markets identified in the geographic breakdown.',
+        });
+    }
+
+    countries.slice(1, 3).forEach(([country, count]) => {
+        const share = pct(count, total);
+
+        if (share < 3) return;
+
+        insights.push({
+            priority: 'medium',
+            title: 'Secondary Market Signal',
+            message:
+                `${escapeText(country)} contributes ${formatNumber(
+                    count
+                )} record(s), approximately ${formatPercent(share)} of the cohort.`,
+            action:
+                'Evaluate whether this market justifies dedicated content, currency display or localized follow-up.',
+        });
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY MOMENTUM
+    |--------------------------------------------------------------------------
+    */
+
+    if (monthlyTrend.length >= 4) {
+        if (trend.direction === 'growth') {
+            insights.push({
+                priority: 'positive',
+                title: 'Patient Volume Momentum',
+                message:
+                    `Average monthly patient volume was approximately ${formatPercent(
+                        Math.abs(trend.change),
+                        1
+                    )} higher in the second half of the reporting period than the first half.`,
+                action:
+                    'Identify which campaigns, referrals or seasonal factors are driving the increase and reinforce them.',
+            });
+        } else if (trend.direction === 'decline') {
+            insights.push({
+                priority: 'critical',
+                title: 'Patient Volume Decline Detected',
+                message:
+                    `Average monthly patient volume declined by approximately ${formatPercent(
+                        Math.abs(trend.change),
+                        1
+                    )} between the first and second halves of the reporting period.`,
+                action:
+                    'Investigate marketing spend changes, referral pipeline health, seasonality and any operational bottlenecks affecting intake.',
+            });
+        } else {
+            insights.push({
+                priority: 'medium',
+                title: 'Stable Monthly Volume',
+                message:
+                    'Patient volume does not show a strong upward or downward movement across the reporting period.',
+                action:
+                    'Use targeted campaigns or referral incentives rather than relying on passive volume growth.',
+            });
+        }
+    }
+
+    if (bestMonth) {
+        insights.push({
+            priority: 'positive',
+            title: 'Strongest Month',
+            message:
+                `${formatMonthLabel(bestMonth[0])} recorded the highest patient volume in the period, with ${formatNumber(
+                    bestMonth[1]
+                )} record(s).`,
+            action:
+                'Review what marketing activity, referral sources or seasonal factors aligned with this month and look to reproduce it.',
+        });
+    }
+
+    if (worstMonth && worstMonth[0] !== bestMonth?.[0]) {
+        insights.push({
+            priority: 'medium',
+            title: 'Weakest Month',
+            message:
+                `${formatMonthLabel(worstMonth[0])} recorded the lowest patient volume in the period, with ${formatNumber(
+                    worstMonth[1]
+                )} record(s).`,
+            action:
+                'Compare this month against campaign activity, clinic availability and seasonal patterns.',
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MANAGEMENT INTERPRETATION
+    |--------------------------------------------------------------------------
+    */
+
+    insights.push({
+        priority: 'medium',
+        title: 'Patient Data Management Interpretation',
+        message:
+            `The clinic processed ${formatNumber(
+                total
+            )} patient record(s) with a combined quoted pipeline value of approximately ${formatKES(
+                totalValue
+            )} during the reporting period.`,
+        action:
+            'Use patient volume and pipeline value together as the top-line commercial KPIs, with procedure mix, geography and BMI profile as the operational planning layers beneath them.',
+    });
+
+    return insights;
 }
 
 /*
@@ -3167,6 +3956,289 @@ function addTimingAnalysis(
 
 /*
 |--------------------------------------------------------------------------
+| SECTION: PATIENT CHARTS
+|--------------------------------------------------------------------------
+*/
+
+function addPatientCharts(doc, analytics, y) {
+    const chartGap = 6;
+    const chartWidth = (CONTENT_WIDTH - chartGap) / 2;
+    const chartHeight = 70;
+
+    y = ensureSpace(doc, y, 90);
+
+    y = addSectionTitle(
+        doc,
+        'Patient Demand & Demographic Distribution',
+        y
+    );
+
+    // Row 1: procedure mix (top 7 + Other) | age group distribution
+    const procedureRows = analytics.procedures
+        .slice(0, 7)
+        .map(([label, value]) => ({ label, value: number(value) }));
+
+    const otherProcedureCount = analytics.procedures
+        .slice(7)
+        .reduce((sum, [, count]) => sum + number(count), 0);
+
+    if (otherProcedureCount > 0) {
+        procedureRows.push({ label: 'Other', value: otherProcedureCount });
+    }
+
+    drawPieChart(
+        doc,
+        procedureRows,
+        MARGIN,
+        y,
+        chartWidth,
+        chartHeight,
+        'Procedure Mix',
+        true
+    );
+
+    drawPieChart(
+        doc,
+        analytics.ageGroupEntries.map(([label, value]) => ({
+            label,
+            value: number(value),
+        })),
+        MARGIN + chartWidth + chartGap,
+        y,
+        chartWidth,
+        chartHeight,
+        'Age Group Distribution',
+        false
+    );
+
+    y += chartHeight + 7;
+
+    // Row 2: BMI category distribution | top countries
+    y = ensureSpace(doc, y, chartHeight + 8);
+
+    drawPieChart(
+        doc,
+        analytics.bmiCategoryEntries.map(([label, value]) => ({
+            label,
+            value: number(value),
+        })),
+        MARGIN,
+        y,
+        chartWidth,
+        chartHeight,
+        'BMI Category Distribution',
+        true
+    );
+
+    drawBarChart(
+        doc,
+        analytics.countries
+            .slice(0, 8)
+            .map(([label, value]) => ({ label, value: number(value) })),
+        MARGIN + chartWidth + chartGap,
+        y,
+        chartWidth,
+        chartHeight,
+        'Top Countries',
+        {
+            color: PURPLE,
+            limit: 8,
+        }
+    );
+
+    y += chartHeight + 8;
+
+    // Row 3: monthly volume trend | value by procedure (either or both,
+    // depending on what data is actually available)
+    const hasTrend = analytics.monthlyTrend.length >= 2;
+    const hasValueBreakdown = analytics.procedureValueBreakdown.length >= 1;
+
+    if (hasTrend || hasValueBreakdown) {
+        const rowHeight = 62;
+
+        y = ensureSpace(doc, y, rowHeight + 8);
+
+        if (hasTrend && hasValueBreakdown) {
+            drawLineChart(
+                doc,
+                analytics.monthlyTrend,
+                MARGIN,
+                y,
+                chartWidth,
+                rowHeight,
+                'Patient Volume by Month',
+                [
+                    {
+                        label: 'New Patients',
+                        color: ACCENT,
+                        values: analytics.monthlyTrend.map(([, count]) =>
+                            number(count)
+                        ),
+                    },
+                ]
+            );
+
+            drawBarChart(
+                doc,
+                analytics.procedureValueBreakdown
+                    .slice(0, 8)
+                    .map(item => ({
+                        label: item.procedure,
+                        value: number(item.avgValue),
+                    })),
+                MARGIN + chartWidth + chartGap,
+                y,
+                chartWidth,
+                rowHeight,
+                'Avg Quoted Value by Procedure (KES)',
+                {
+                    color: WARNING,
+                    limit: 8,
+                }
+            );
+        } else if (hasTrend) {
+            drawLineChart(
+                doc,
+                analytics.monthlyTrend,
+                MARGIN,
+                y,
+                CONTENT_WIDTH,
+                rowHeight,
+                'Patient Volume by Month',
+                [
+                    {
+                        label: 'New Patients',
+                        color: ACCENT,
+                        values: analytics.monthlyTrend.map(([, count]) =>
+                            number(count)
+                        ),
+                    },
+                ]
+            );
+        } else {
+            drawBarChart(
+                doc,
+                analytics.procedureValueBreakdown
+                    .slice(0, 8)
+                    .map(item => ({
+                        label: item.procedure,
+                        value: number(item.avgValue),
+                    })),
+                MARGIN,
+                y,
+                CONTENT_WIDTH,
+                rowHeight,
+                'Avg Quoted Value by Procedure (KES)',
+                {
+                    color: WARNING,
+                    limit: 8,
+                }
+            );
+        }
+
+        y += rowHeight + 8;
+    }
+
+    return y;
+}
+
+function addPatientRawDataTables(doc, analytics, y) {
+    const addTable = (title, headers, rows, columnStyles = {}) => {
+        y = addSectionTitle(doc, title, y);
+
+        const safeRows = (rows || []).map(row =>
+            row.map(value => escapeText(value))
+        );
+
+        autoTable(doc, {
+            startY: y,
+            head: [headers.map(escapeText)],
+            body: safeRows,
+            theme: 'striped',
+            margin: {
+                left: MARGIN,
+                right: MARGIN,
+                top: 20,
+                bottom: 18,
+            },
+            styles: {
+                font: 'helvetica',
+                fontSize: 6.8,
+                cellPadding: 2.2,
+                valign: 'middle',
+                overflow: 'linebreak',
+            },
+            headStyles: {
+                fillColor: PRIMARY,
+                textColor: WHITE,
+                fontStyle: 'bold',
+            },
+            alternateRowStyles: {
+                fillColor: LIGHT,
+            },
+            columnStyles,
+        });
+
+        y = (doc.lastAutoTable?.finalY || y) + 7;
+
+        return y;
+    };
+
+    if (analytics.procedures.length) {
+        y = addTable(
+            'Full Procedure Breakdown',
+            ['Procedure', 'Records', 'Share'],
+            analytics.procedures.map(([procedure, count]) => [
+                procedure,
+                formatNumber(count),
+                formatPercent(pct(count, analytics.total)),
+            ]),
+            { 0: { cellWidth: 110 } }
+        );
+    }
+
+    if (analytics.procedureValueBreakdown.length) {
+        y = addTable(
+            'Procedure Value Breakdown',
+            ['Procedure', 'Avg Quoted Value', 'Total Quoted Value', 'Records'],
+            analytics.procedureValueBreakdown.map(item => [
+                item.procedure,
+                formatKES(item.avgValue),
+                formatKES(item.totalValue),
+                formatNumber(item.count),
+            ]),
+            { 0: { cellWidth: 90 } }
+        );
+    }
+
+    if (analytics.countries.length) {
+        y = addTable(
+            'Full Geographic Breakdown',
+            ['Country', 'Records', 'Share'],
+            analytics.countries.map(([country, count]) => [
+                country,
+                formatNumber(count),
+                formatPercent(pct(count, analytics.total)),
+            ])
+        );
+    }
+
+    if (analytics.monthlyTrend.length) {
+        y = addTable(
+            'Monthly Patient Volume',
+            ['Month', 'New Patients'],
+            analytics.monthlyTrend.map(([month, count]) => [
+                formatMonthLabel(month),
+                formatNumber(count),
+            ])
+        );
+    }
+
+    return y;
+}
+
+/*
+|--------------------------------------------------------------------------
 | SECTION: MANAGEMENT ACTIONS
 |--------------------------------------------------------------------------
 */
@@ -3507,7 +4579,8 @@ function addRawDatasetTables(
 function addDataCoverageSection(
     doc,
     analytics,
-    y
+    y,
+    patientAnalytics = null
 ) {
     y = addSectionTitle(
         doc,
@@ -3515,54 +4588,76 @@ function addDataCoverageSection(
         y
     );
 
-    const rows = [
-        [
-            'Daily records',
-            formatNumber(
-                analytics.dataCoverage.dailyRecords
-            ),
-        ],
-        [
-            'Page records',
-            formatNumber(
-                analytics.dataCoverage.pageRecords
-            ),
-        ],
-        [
-            'Country records',
-            formatNumber(
-                analytics.dataCoverage.countryRecords
-            ),
-        ],
-        [
-            'Traffic source records',
-            formatNumber(
-                analytics.dataCoverage.sourceRecords
-            ),
-        ],
-        [
-            'Device records',
-            formatNumber(
-                analytics.dataCoverage.deviceRecords
-            ),
-        ],
-        [
-            'User-type records',
-            formatNumber(
-                analytics.dataCoverage.userTypeRecords
-            ),
-        ],
-        [
-            'Hourly records',
-            formatNumber(
-                analytics.dataCoverage.hourlyRecords
-            ),
-        ],
-        [
-            'Calculated insights',
-            'Extensive rule-based management analytics',
-        ],
-    ];
+    const rows = [];
+
+    if (analytics) {
+        rows.push(
+            [
+                'Daily records',
+                formatNumber(
+                    analytics.dataCoverage.dailyRecords
+                ),
+            ],
+            [
+                'Page records',
+                formatNumber(
+                    analytics.dataCoverage.pageRecords
+                ),
+            ],
+            [
+                'Country records',
+                formatNumber(
+                    analytics.dataCoverage.countryRecords
+                ),
+            ],
+            [
+                'Traffic source records',
+                formatNumber(
+                    analytics.dataCoverage.sourceRecords
+                ),
+            ],
+            [
+                'Device records',
+                formatNumber(
+                    analytics.dataCoverage.deviceRecords
+                ),
+            ],
+            [
+                'User-type records',
+                formatNumber(
+                    analytics.dataCoverage.userTypeRecords
+                ),
+            ],
+            [
+                'Hourly records',
+                formatNumber(
+                    analytics.dataCoverage.hourlyRecords
+                ),
+            ]
+        );
+    }
+
+    rows.push([
+        'Calculated insights',
+        'Extensive rule-based management analytics',
+    ]);
+
+    if (patientAnalytics) {
+        rows.push(
+            [
+                'Patient records',
+                formatNumber(patientAnalytics.total),
+            ],
+            [
+                'Patient procedure types',
+                formatNumber(patientAnalytics.proceduresCount),
+            ],
+            [
+                'Patient market records',
+                formatNumber(patientAnalytics.countriesCount),
+            ]
+        );
+    }
 
     autoTable(doc, {
         startY: y,
@@ -3676,12 +4771,7 @@ function emailTrendHTML(timeSeries) {
     `;
 }
 
-function buildEmailHTML({
-    analytics,
-    insights,
-    aiNarrative,
-    periodText,
-}) {
+function renderInsightCardsHTML(insights, limit = 20) {
     const priorityColor = {
         critical: '#dc2626',
         high: '#ea580c',
@@ -3689,14 +4779,11 @@ function buildEmailHTML({
         positive: '#059669',
     };
 
-    const topInsightHTML = insights
-        .slice(0, 20)
+    return insights
+        .slice(0, limit)
         .map(insight => {
             const color =
-                priorityColor[
-                insight.priority
-                ] ||
-                '#4f46e5';
+                priorityColor[insight.priority] || '#4f46e5';
 
             return `
                 <div style="
@@ -3714,10 +4801,7 @@ function buildEmailHTML({
                         text-transform:uppercase;
                         margin-bottom:5px;
                     ">
-                        ${htmlEscape(
-                insight.priority ||
-                'medium'
-            )}
+                        ${htmlEscape(insight.priority || 'medium')}
                     </div>
 
                     <div style="
@@ -3726,9 +4810,7 @@ function buildEmailHTML({
                         color:#0f172a;
                         margin-bottom:5px;
                     ">
-                        ${htmlEscape(
-                insight.title
-            )}
+                        ${htmlEscape(insight.title)}
                     </div>
 
                     <div style="
@@ -3737,9 +4819,7 @@ function buildEmailHTML({
                         line-height:1.6;
                         margin-bottom:6px;
                     ">
-                        ${htmlEscape(
-                insight.message
-            )}
+                        ${htmlEscape(insight.message)}
                     </div>
 
                     <div style="
@@ -3747,129 +4827,169 @@ function buildEmailHTML({
                         color:#334155;
                         line-height:1.5;
                     ">
-                        <strong>
-                            Recommended action:
-                        </strong>
-                        ${htmlEscape(
-                insight.action
-            )}
+                        <strong>Recommended action:</strong>
+                        ${htmlEscape(insight.action)}
                     </div>
                 </div>
             `;
         })
         .join('');
+}
 
-    const topPagesHTML =
-        analytics.sortedPages
-            .slice(0, 10)
+function emailKpiCardsHTML(cards) {
+    return `
+        <div style="
+            display:grid;
+            grid-template-columns:repeat(4,1fr);
+            gap:10px;
+            margin-bottom:20px;
+        ">
+            ${cards
             .map(
-                page => `
-                    <tr>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
-                            ${htmlEscape(
-                    page.pagePath || '/'
-                )}
-                        </td>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
-                            ${formatNumber(
-                    page.screenPageViews
-                )}
-                        </td>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
-                            ${formatDuration(
-                    page.averageEngagementTime
-                )}
-                        </td>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
-                            ${formatPercent(
-                    page.bounceRate
-                )}
-                        </td>
-                    </tr>
-                `
+                card => `
+                        <div style="
+                            background:#fff;
+                            border:1px solid #e2e8f0;
+                            border-radius:10px;
+                            padding:12px;
+                        ">
+                            <div style="
+                                font-size:10px;
+                                color:#64748b;
+                                text-transform:uppercase;
+                                font-weight:700;
+                            ">
+                                ${htmlEscape(card[0])}
+                            </div>
+
+                            <div style="
+                                font-size:20px;
+                                font-weight:800;
+                                margin-top:4px;
+                            ">
+                                ${htmlEscape(card[1])}
+                            </div>
+                        </div>
+                    `
             )
-            .join('');
+            .join('')}
+        </div>
+    `;
+}
 
-    const sourceHTML =
-        analytics.sortedSources
-            .slice(0, 10)
-            .map(
-                source => `
-                    <tr>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
-                            ${htmlEscape(
-                    source.sessionSource ||
-                    'Unknown'
-                )}
-                        </td>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
-                            ${formatNumber(
-                    source.sessions
-                )}
-                        </td>
-                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
-                            ${formatPercent(
-                    pct(
-                        source.sessions,
-                        analytics.sessions
-                    )
-                )}
-                        </td>
-                    </tr>
-                `
-            )
-            .join('');
+function emailCardHTML(title, innerHTML) {
+    return `
+        <div style="
+            background:#fff;
+            border:1px solid #e2e8f0;
+            border-radius:14px;
+            padding:18px;
+            margin-bottom:20px;
+        ">
+            <div style="font-size:18px;font-weight:800;margin-bottom:12px;">
+                ${htmlEscape(title)}
+            </div>
+            ${innerHTML}
+        </div>
+    `;
+}
 
-    const trendChartHTML = emailTrendHTML(analytics.timeSeries);
+function buildEmailHTML({
+    analytics,
+    patientAnalytics,
+    insights,
+    patientInsights,
+    aiNarrative,
+    periodText,
+    headerSubtitle,
+}) {
+    const hasWebData = Boolean(analytics);
+    const hasPatientData = Boolean(patientAnalytics);
 
-    const sourceChartHTML = emailBarRows(
-        analytics.sortedSources,
-        'sessions',
-        'sessionSource',
-        analytics.sessions,
-        8
-    );
+    /*
+    |--------------------------------------------------------------------------
+    | PATIENT SECTION
+    |--------------------------------------------------------------------------
+    */
 
-    const pageChartHTML = emailBarRows(
-        analytics.sortedPages,
-        'screenPageViews',
-        'pagePath',
-        analytics.pageviews,
-        8
-    );
+    let patientSectionHTML = '';
 
-    const countryChartHTML = emailBarRows(
-        analytics.sortedCountries,
-        'sessions',
-        'country',
-        analytics.sessions,
-        8
-    );
+    if (hasPatientData) {
+        const patientKpiHTML = emailKpiCardsHTML([
+            ['Total Patients', formatNumber(patientAnalytics.total)],
+            [
+                'Avg Age',
+                patientAnalytics.avgAge
+                    ? `${formatNumber(patientAnalytics.avgAge, 1)} yrs`
+                    : 'N/A',
+            ],
+            [
+                'Avg BMI',
+                patientAnalytics.avgBmi
+                    ? formatNumber(patientAnalytics.avgBmi, 1)
+                    : 'N/A',
+            ],
+            ['Non-Surgical', formatPercent(patientAnalytics.nonSurgPercent)],
+            ['Avg Quoted Value', formatKES(patientAnalytics.avgValue)],
+            ['Pipeline Value', formatKES(patientAnalytics.totalValue)],
+            ['Prior Surgery', formatPercent(patientAnalytics.pastSurgPercent)],
+            [
+                'Top Procedure',
+                patientAnalytics.topProcedure?.[0]
+                    ? htmlEscape(patientAnalytics.topProcedure[0])
+                    : 'N/A',
+            ],
+        ]);
 
-    const deviceChartHTML = emailBarRows(
-        analytics.devices,
-        'sessions',
-        'deviceCategory',
-        analytics.sessions,
-        6
-    );
+        const procedureChartHTML = emailBarRows(
+            patientAnalytics.procedures
+                .slice(0, 8)
+                .map(([label, value]) => ({ label, value: number(value) })),
+            'value',
+            'label',
+            patientAnalytics.total,
+            8
+        );
 
-    const userTypeChartHTML = emailBarRows(
-        analytics.users,
-        'sessions',
-        'newVsReturning',
-        analytics.sessions,
-        4
-    );
+        const ageChartHTML = emailBarRows(
+            patientAnalytics.ageGroupEntries.map(([label, value]) => ({
+                label,
+                value: number(value),
+            })),
+            'value',
+            'label',
+            patientAnalytics.total,
+            8
+        );
 
-    const aiNarrativeHTML = aiNarrative
-        ? `
+        const bmiChartHTML = emailBarRows(
+            patientAnalytics.bmiCategoryEntries.map(([label, value]) => ({
+                label,
+                value: number(value),
+            })),
+            'value',
+            'label',
+            patientAnalytics.bmiMeasuredCount || patientAnalytics.total,
+            8
+        );
+
+        const patientCountryChartHTML = emailBarRows(
+            patientAnalytics.countries
+                .slice(0, 8)
+                .map(([label, value]) => ({ label, value: number(value) })),
+            'value',
+            'label',
+            patientAnalytics.total,
+            8
+        );
+
+        const patientOverviewHTML = `
             <div style="
                 background:#f5f3ff;
                 border:1px solid #ddd6fe;
                 border-radius:14px;
                 padding:18px;
-                margin-bottom:24px;
+                margin-bottom:20px;
             ">
                 <div style="
                     font-size:18px;
@@ -3877,27 +4997,318 @@ function buildEmailHTML({
                     color:#312e81;
                     margin-bottom:10px;
                 ">
-                    AI Executive Interpretation
+                    Patient Analytics Overview
                 </div>
-
                 <div style="
                     font-size:13px;
                     line-height:1.7;
                     color:#334155;
-                    white-space:pre-wrap;
                 ">
-                    ${htmlEscape(aiNarrative)}
+                    ${htmlEscape(buildPatientOverviewNarrative(patientAnalytics))}
                 </div>
             </div>
-        `
-        : '';
+        `;
+
+        patientSectionHTML = `
+            <div style="
+                font-size:20px;
+                font-weight:800;
+                color:#0f172a;
+                margin:8px 0 14px;
+                padding-bottom:8px;
+                border-bottom:2px solid #4f46e5;
+            ">
+                Patient Analytics Intelligence
+            </div>
+
+            ${patientKpiHTML}
+
+            ${patientOverviewHTML}
+
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <tr>
+                    <td style="width:50%;vertical-align:top;padding-right:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Procedure Mix</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${procedureChartHTML}</table>
+                        </div>
+                    </td>
+                    <td style="width:50%;vertical-align:top;padding-left:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Age Group Distribution</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${ageChartHTML}</table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <tr>
+                    <td style="width:50%;vertical-align:top;padding-right:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">BMI Category Distribution</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${bmiChartHTML}</table>
+                        </div>
+                    </td>
+                    <td style="width:50%;vertical-align:top;padding-left:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Top Countries</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${patientCountryChartHTML}</table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            ${emailCardHTML(
+            `Patient Executive Findings (${patientInsights.length})`,
+            renderInsightCardsHTML(patientInsights, 20)
+        )}
+        `;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | WEBSITE SECTION
+    |--------------------------------------------------------------------------
+    */
+
+    let webSectionHTML = '';
+
+    if (hasWebData) {
+        const topPagesHTML = analytics.sortedPages
+            .slice(0, 10)
+            .map(
+                page => `
+                    <tr>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
+                            ${htmlEscape(page.pagePath || '/')}
+                        </td>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
+                            ${formatNumber(page.screenPageViews)}
+                        </td>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
+                            ${formatDuration(page.averageEngagementTime)}
+                        </td>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
+                            ${formatPercent(page.bounceRate)}
+                        </td>
+                    </tr>
+                `
+            )
+            .join('');
+
+        const sourceHTML = analytics.sortedSources
+            .slice(0, 10)
+            .map(
+                source => `
+                    <tr>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;">
+                            ${htmlEscape(source.sessionSource || 'Unknown')}
+                        </td>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
+                            ${formatNumber(source.sessions)}
+                        </td>
+                        <td style="padding:8px;border-bottom:1px solid #e2e8f0;text-align:right;">
+                            ${formatPercent(pct(source.sessions, analytics.sessions))}
+                        </td>
+                    </tr>
+                `
+            )
+            .join('');
+
+        const trendChartHTML = emailTrendHTML(analytics.timeSeries);
+
+        const sourceChartHTML = emailBarRows(
+            analytics.sortedSources,
+            'sessions',
+            'sessionSource',
+            analytics.sessions,
+            8
+        );
+
+        const pageChartHTML = emailBarRows(
+            analytics.sortedPages,
+            'screenPageViews',
+            'pagePath',
+            analytics.pageviews,
+            8
+        );
+
+        const countryChartHTML = emailBarRows(
+            analytics.sortedCountries,
+            'sessions',
+            'country',
+            analytics.sessions,
+            8
+        );
+
+        const deviceChartHTML = emailBarRows(
+            analytics.devices,
+            'sessions',
+            'deviceCategory',
+            analytics.sessions,
+            6
+        );
+
+        const userTypeChartHTML = emailBarRows(
+            analytics.users,
+            'sessions',
+            'newVsReturning',
+            analytics.sessions,
+            4
+        );
+
+        const webKpiHTML = emailKpiCardsHTML([
+            ['Users', formatNumber(analytics.totalUsers)],
+            ['Sessions', formatNumber(analytics.sessions)],
+            ['Pageviews', formatNumber(analytics.pageviews)],
+            ['Engagement', formatPercent(analytics.engagementRate)],
+            ['Bounce', formatPercent(analytics.bounceRate)],
+            ['Returning', formatPercent(analytics.returningRate)],
+            ['Mobile', formatPercent(analytics.mobileShare)],
+            ['Views / Session', formatNumber(analytics.viewsPerSession, 2)],
+        ]);
+
+        const aiNarrativeHTML = aiNarrative
+            ? `
+                <div style="
+                    background:#f5f3ff;
+                    border:1px solid #ddd6fe;
+                    border-radius:14px;
+                    padding:18px;
+                    margin-bottom:20px;
+                ">
+                    <div style="
+                        font-size:18px;
+                        font-weight:800;
+                        color:#312e81;
+                        margin-bottom:10px;
+                    ">
+                        AI Executive Interpretation
+                    </div>
+
+                    <div style="
+                        font-size:13px;
+                        line-height:1.7;
+                        color:#334155;
+                        white-space:pre-wrap;
+                    ">
+                        ${htmlEscape(aiNarrative)}
+                    </div>
+                </div>
+            `
+            : '';
+
+        webSectionHTML = `
+            <div style="
+                font-size:20px;
+                font-weight:800;
+                color:#0f172a;
+                margin:8px 0 14px;
+                padding-bottom:8px;
+                border-bottom:2px solid #4f46e5;
+            ">
+                Website Intelligence & Management Analytics
+            </div>
+
+            ${webKpiHTML}
+
+            ${aiNarrativeHTML}
+
+            <div style="
+                background:#fff;
+                border:1px solid #e2e8f0;
+                border-radius:14px;
+                padding:18px;
+                margin-bottom:20px;
+            " >
+                <div style="font-size:18px;font-weight:800;margin-bottom:12px;">Traffic Trend</div>
+                ${trendChartHTML}
+            </div>
+
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <tr>
+                    <td style="width:50%;vertical-align:top;padding-right:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Traffic Sources</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${sourceChartHTML}</table>
+                        </div>
+                    </td>
+                    <td style="width:50%;vertical-align:top;padding-left:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Top Pages</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${pageChartHTML}</table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                <tr>
+                    <td style="width:50%;vertical-align:top;padding-right:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Top Countries</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${countryChartHTML}</table>
+                        </div>
+                    </td>
+                    <td style="width:50%;vertical-align:top;padding-left:6px;">
+                        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
+                            <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Audience Mix</div>
+                            <div style="font-size:12px;font-weight:700;color:#475569;margin:0 0 6px;">Devices</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${deviceChartHTML}</table>
+                            <div style="font-size:12px;font-weight:700;color:#475569;margin:12px 0 6px;">New vs Returning</div>
+                            <table role="presentation" style="width:100%;border-collapse:collapse;">${userTypeChartHTML}</table>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            ${emailCardHTML(
+            `Website Executive Findings (${insights.length})`,
+            renderInsightCardsHTML(insights, 20)
+        )}
+
+            ${emailCardHTML(
+            'Top Pages',
+            `
+                    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                        <thead>
+                            <tr style="background:#f8fafc;">
+                                <th style="padding:8px;text-align:left;">Page</th>
+                                <th style="padding:8px;text-align:right;">Views</th>
+                                <th style="padding:8px;text-align:right;">Engagement</th>
+                                <th style="padding:8px;text-align:right;">Bounce</th>
+                            </tr>
+                        </thead>
+                        <tbody>${topPagesHTML}</tbody>
+                    </table>
+                `
+        )}
+
+            ${emailCardHTML(
+            'Acquisition Sources',
+            `
+                    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+                        <thead>
+                            <tr style="background:#f8fafc;">
+                                <th style="padding:8px;text-align:left;">Source</th>
+                                <th style="padding:8px;text-align:right;">Sessions</th>
+                                <th style="padding:8px;text-align:right;">Share</th>
+                            </tr>
+                        </thead>
+                        <tbody>${sourceHTML}</tbody>
+                    </table>
+                `
+        )}
+        `;
+    }
 
     return `
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8" />
-    <title>Dr. JP Ogalo Website Analytics Report</title>
+    <title>Dr. JP Ogalo Patient &amp; Web Report</title>
 </head>
 
 <body style="
@@ -3934,7 +5345,10 @@ function buildEmailHTML({
             margin-top:5px;
             color:#cbd5e1;
         ">
-            Website Intelligence & Management Analytics
+            ${htmlEscape(
+        headerSubtitle ||
+        'Website Intelligence & Management Analytics'
+    )}
         </div>
 
         <div style="
@@ -3946,197 +5360,9 @@ function buildEmailHTML({
         </div>
     </div>
 
-    <div style="
-        display:grid;
-        grid-template-columns:repeat(4,1fr);
-        gap:10px;
-        margin-bottom:20px;
-    ">
+    ${patientSectionHTML}
 
-        ${[
-            ['Users', formatNumber(analytics.totalUsers)],
-            ['Sessions', formatNumber(analytics.sessions)],
-            ['Pageviews', formatNumber(analytics.pageviews)],
-            ['Engagement', formatPercent(analytics.engagementRate)],
-            ['Bounce', formatPercent(analytics.bounceRate)],
-            ['Returning', formatPercent(analytics.returningRate)],
-            ['Mobile', formatPercent(analytics.mobileShare)],
-            ['Views / Session', formatNumber(analytics.viewsPerSession, 2)],
-        ]
-            .map(
-                card => `
-                    <div style="
-                        background:#fff;
-                        border:1px solid #e2e8f0;
-                        border-radius:10px;
-                        padding:12px;
-                    ">
-                        <div style="
-                            font-size:10px;
-                            color:#64748b;
-                            text-transform:uppercase;
-                            font-weight:700;
-                        ">
-                            ${htmlEscape(card[0])}
-                        </div>
-
-                        <div style="
-                            font-size:20px;
-                            font-weight:800;
-                            margin-top:4px;
-                        ">
-                            ${htmlEscape(card[1])}
-                        </div>
-                    </div>
-                `
-            )
-            .join('')}
-
-    </div>
-
-    ${aiNarrativeHTML}
-
-    <div style="
-        background:#fff;
-        border:1px solid #e2e8f0;
-        border-radius:14px;
-        padding:18px;
-        margin-bottom:20px;
-    " >
-        <div style="font-size:18px;font-weight:800;margin-bottom:12px;">Traffic Trend</div>
-        ${trendChartHTML}
-    </div>
-
-    <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-        <tr>
-            <td style="width:50%;vertical-align:top;padding-right:6px;">
-                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
-                    <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Traffic Sources</div>
-                    <table role="presentation" style="width:100%;border-collapse:collapse;">${sourceChartHTML}</table>
-                </div>
-            </td>
-            <td style="width:50%;vertical-align:top;padding-left:6px;">
-                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
-                    <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Top Pages</div>
-                    <table role="presentation" style="width:100%;border-collapse:collapse;">${pageChartHTML}</table>
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    <table role="presentation" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-        <tr>
-            <td style="width:50%;vertical-align:top;padding-right:6px;">
-                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
-                    <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Top Countries</div>
-                    <table role="presentation" style="width:100%;border-collapse:collapse;">${countryChartHTML}</table>
-                </div>
-            </td>
-            <td style="width:50%;vertical-align:top;padding-left:6px;">
-                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;">
-                    <div style="font-size:17px;font-weight:800;margin-bottom:12px;">Audience Mix</div>
-                    <div style="font-size:12px;font-weight:700;color:#475569;margin:0 0 6px;">Devices</div>
-                    <table role="presentation" style="width:100%;border-collapse:collapse;">${deviceChartHTML}</table>
-                    <div style="font-size:12px;font-weight:700;color:#475569;margin:12px 0 6px;">New vs Returning</div>
-                    <table role="presentation" style="width:100%;border-collapse:collapse;">${userTypeChartHTML}</table>
-                </div>
-            </td>
-        </tr>
-    </table>
-
-    <div style="
-        background:#fff;
-        border:1px solid #e2e8f0;
-        border-radius:14px;
-        padding:18px;
-        margin-bottom:20px;
-    ">
-
-        <div style="
-            font-size:18px;
-            font-weight:800;
-            margin-bottom:12px;
-        ">
-            Executive Findings
-        </div>
-
-        ${topInsightHTML}
-
-    </div>
-
-    <div style="
-        background:#fff;
-        border:1px solid #e2e8f0;
-        border-radius:14px;
-        padding:18px;
-        margin-bottom:20px;
-    ">
-
-        <div style="
-            font-size:18px;
-            font-weight:800;
-            margin-bottom:12px;
-        ">
-            Top Pages
-        </div>
-
-        <table style="
-            width:100%;
-            border-collapse:collapse;
-            font-size:12px;
-        ">
-            <thead>
-                <tr style="background:#f8fafc;">
-                    <th style="padding:8px;text-align:left;">Page</th>
-                    <th style="padding:8px;text-align:right;">Views</th>
-                    <th style="padding:8px;text-align:right;">Engagement</th>
-                    <th style="padding:8px;text-align:right;">Bounce</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                ${topPagesHTML}
-            </tbody>
-        </table>
-
-    </div>
-
-    <div style="
-        background:#fff;
-        border:1px solid #e2e8f0;
-        border-radius:14px;
-        padding:18px;
-        margin-bottom:20px;
-    ">
-
-        <div style="
-            font-size:18px;
-            font-weight:800;
-            margin-bottom:12px;
-        ">
-            Acquisition Sources
-        </div>
-
-        <table style="
-            width:100%;
-            border-collapse:collapse;
-            font-size:12px;
-        ">
-
-            <thead>
-                <tr style="background:#f8fafc;">
-                    <th style="padding:8px;text-align:left;">Source</th>
-                    <th style="padding:8px;text-align:right;">Sessions</th>
-                    <th style="padding:8px;text-align:right;">Share</th>
-                </tr>
-            </thead>
-
-            <tbody>
-                ${sourceHTML}
-            </tbody>
-        </table>
-
-    </div>
+    ${webSectionHTML}
 
     <div style="
         background:#f1f5f9;
@@ -4146,10 +5372,10 @@ function buildEmailHTML({
         font-size:11px;
         line-height:1.6;
     ">
-        This report is generated from the GA4 dataset supplied by the website analytics layer.
-        Calculated metrics are derived from the supplied data. No conversion value,
-        revenue or patient acquisition figures are assumed unless explicitly supplied
-        by the analytics dataset.
+        This report is generated from the dataset(s) supplied by the patient and/or website
+        analytics layer. Calculated metrics are derived from the supplied data. No conversion
+        value, revenue or clinical outcome figures are assumed unless explicitly supplied
+        by the underlying dataset.
     </div>
 
 </div>
@@ -4269,61 +5495,123 @@ export default async function handler(req, res) {
         |--------------------------------------------------------------------------
         */
 
-        const analytics =
-            calculateAnalytics(data);
+        const hasWebData =
+            data.timeSeries.length > 0 ||
+            data.topPages.length > 0 ||
+            data.trafficSources.length > 0 ||
+            data.deviceCategories.length > 0 ||
+            data.userTypes.length > 0 ||
+            data.hourly.length > 0;
 
-        const deterministicInsights =
-            buildAIInsights(
-                analytics
-            );
+        const patientAnalytics = calculatePatientAnalytics(
+            data.patientAnalytics
+        );
+
+        const hasPatientData = Boolean(patientAnalytics);
+
+        const analytics = hasWebData
+            ? calculateAnalytics(data)
+            : null;
+
+        const webDeterministicInsights = analytics
+            ? buildAIInsights(analytics)
+            : [];
+
+        const patientDeterministicInsights = patientAnalytics
+            ? buildPatientAIInsights(patientAnalytics)
+            : [];
 
         /*
         |--------------------------------------------------------------------------
-        | KEEP CLIENT INSIGHTS TOO
+        | KEEP CLIENT INSIGHTS TOO, ROUTED BY TYPE
         |--------------------------------------------------------------------------
         */
 
-        const suppliedInsights =
-            data.aiInsights.map(
-                insight => ({
-                    priority:
-                        'medium',
-                    title:
-                        escapeText(
-                            insight?.title ||
-                            'Existing Analytics Insight'
-                        ),
-                    message:
-                        escapeText(
-                            insight?.message ||
-                            ''
-                        ),
-                    action:
-                        'Continue monitoring this indicator and compare it with related website metrics.',
-                })
-            );
+        // Insights the client already tags 'patient' or 'web' go to their
+        // matching section. Untagged insights (older clients) fall back to
+        // whichever single section is actually active in this report.
+        const fallbackType = hasPatientData && !hasWebData
+            ? 'patient'
+            : 'web';
+
+        const suppliedPatientInsights = [];
+        const suppliedWebInsights = [];
+
+        data.aiInsights.forEach(insight => {
+            const mapped = {
+                priority: 'medium',
+                title: escapeText(
+                    insight?.title || 'Existing Analytics Insight'
+                ),
+                message: escapeText(insight?.message || ''),
+                action:
+                    (insight?.type || fallbackType) === 'patient'
+                        ? 'Continue monitoring this indicator and compare it with related patient metrics.'
+                        : 'Continue monitoring this indicator and compare it with related website metrics.',
+            };
+
+            const type = insight?.type === 'patient' || insight?.type === 'web'
+                ? insight.type
+                : fallbackType;
+
+            if (type === 'patient') {
+                suppliedPatientInsights.push(mapped);
+            } else {
+                suppliedWebInsights.push(mapped);
+            }
+        });
+
+        const patientInsights = hasPatientData
+            ? dedupeInsights([
+                ...patientDeterministicInsights,
+                ...suppliedPatientInsights,
+            ])
+            : [];
+
+        const webInsights = hasWebData
+            ? dedupeInsights([
+                ...webDeterministicInsights,
+                ...suppliedWebInsights,
+            ])
+            : [];
+
+        const priorityOrder = {
+            critical: 0,
+            high: 1,
+            medium: 2,
+            positive: 3,
+        };
+
+        const byPriority = (a, b) =>
+            (priorityOrder[a.priority] ?? 9) -
+            (priorityOrder[b.priority] ?? 9);
+
+        const orderedPatientInsights = [...patientInsights].sort(byPriority);
+        const orderedWebInsights = [...webInsights].sort(byPriority);
 
         const allInsights = dedupeInsights([
-            ...deterministicInsights,
-            ...suppliedInsights,
+            ...patientInsights,
+            ...webInsights,
         ]);
+
+        const orderedInsights = [...allInsights].sort(byPriority);
 
         /*
         |--------------------------------------------------------------------------
-        | OPTIONAL ACTUAL AI NARRATIVE
+        | OPTIONAL ACTUAL AI NARRATIVE (website only)
         |--------------------------------------------------------------------------
         */
 
-        const aiNarrative =
-            await generateOpenAIExecutiveNarrative(
+        const aiNarrative = hasWebData
+            ? await generateOpenAIExecutiveNarrative(
                 {
                     analytics,
-                    insights:
-                        allInsights,
+                    insights: webInsights,
                     reportType,
                     periodText,
                 }
-            );
+            )
+            : null;
 
         /*
         |--------------------------------------------------------------------------
@@ -4344,128 +5632,172 @@ export default async function handler(req, res) {
         |--------------------------------------------------------------------------
         */
 
+        const headerSubtitle =
+            hasPatientData && hasWebData
+                ? 'Patient & Website Intelligence and Management Analytics'
+                : hasPatientData
+                    ? 'Patient Intelligence & Management Analytics'
+                    : 'Website Intelligence & Management Analytics';
+
+        const footerLabel = `Dr. JP Ogalo Clinic \u00b7 Internal ${hasPatientData && hasWebData
+                ? 'Patient & Website'
+                : hasPatientData
+                    ? 'Patient'
+                    : 'Website'
+            } Intelligence Report`;
+
         addHeader(
             doc,
             reportType,
             periodText,
-            generatedAt
+            generatedAt,
+            headerSubtitle
         );
 
         let y = 56;
 
-        y = addKpiDashboard(
-            doc,
-            analytics,
-            y
-        );
-
         /*
         |--------------------------------------------------------------------------
-        | EXECUTIVE AI INTERPRETATION
+        | PATIENT ANALYTICS INTELLIGENCE
         |--------------------------------------------------------------------------
         */
 
-        if (aiNarrative) {
+        if (hasPatientData) {
+            y = addPatientKpiDashboard(
+                doc,
+                patientAnalytics,
+                y
+            );
+
             y = addNarrativeSection(
                 doc,
-                aiNarrative,
-                'AI Executive Interpretation',
+                buildPatientOverviewNarrative(patientAnalytics),
+                'Patient Analytics Overview',
                 y
             );
-        }
 
-        /*
-        |--------------------------------------------------------------------------
-        | MASSIVE AI INSIGHTS
-        |--------------------------------------------------------------------------
-        */
-
-        y = addSectionTitle(
-            doc,
-            `AI Analytics & Management Intelligence (${allInsights.length} findings)`,
-            y
-        );
-
-        const orderedInsights =
-            [...allInsights].sort(
-                (a, b) => {
-                    const priorityOrder = {
-                        critical: 0,
-                        high: 1,
-                        medium: 2,
-                        positive: 3,
-                    };
-
-                    return (
-                        (priorityOrder[
-                            a.priority
-                        ] ?? 9) -
-                        (priorityOrder[
-                            b.priority
-                        ] ?? 9)
-                    );
-                }
-            );
-
-        for (const insight of orderedInsights) {
-            y = addInsightCard(
+            y = addSectionTitle(
                 doc,
-                insight,
+                `Patient AI Analytics & Insights (${orderedPatientInsights.length} findings)`,
+                y
+            );
+
+            for (const insight of orderedPatientInsights) {
+                y = addInsightCard(doc, insight, y);
+            }
+
+            y = addPatientCharts(doc, patientAnalytics, y);
+            y = addPatientRawDataTables(doc, patientAnalytics, y);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | WEBSITE INTELLIGENCE
+        |--------------------------------------------------------------------------
+        */
+
+        if (hasWebData) {
+            // Start the website section on a fresh page when it follows a
+            // patient section, so the two are visually distinct rather than
+            // running together.
+            if (hasPatientData) {
+                doc.addPage();
+                y = 18;
+            }
+
+            y = addSectionTitle(
+                doc,
+                'Website Intelligence & Management Analytics',
+                y
+            );
+
+            y = addKpiDashboard(
+                doc,
+                analytics,
+                y
+            );
+
+            if (aiNarrative) {
+                y = addNarrativeSection(
+                    doc,
+                    aiNarrative,
+                    'AI Executive Interpretation',
+                    y
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | MASSIVE AI INSIGHTS
+            |--------------------------------------------------------------------------
+            */
+
+            y = addSectionTitle(
+                doc,
+                `Website AI Analytics & Management Intelligence (${orderedWebInsights.length} findings)`,
+                y
+            );
+
+            for (const insight of orderedWebInsights) {
+                y = addInsightCard(
+                    doc,
+                    insight,
+                    y
+                );
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | TRAFFIC
+            |--------------------------------------------------------------------------
+            */
+
+            y = addTrendCharts(
+                doc,
+                analytics,
+                y
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | ACQUISITION
+            |--------------------------------------------------------------------------
+            */
+
+            y = addAcquisitionCharts(
+                doc,
+                analytics,
+                y
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | CONTENT
+            |--------------------------------------------------------------------------
+            */
+
+            y = addContentCharts(
+                doc,
+                analytics,
+                y
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | TIMING
+            |--------------------------------------------------------------------------
+            */
+
+            y = addTimingAnalysis(
+                doc,
+                analytics,
                 y
             );
         }
 
         /*
         |--------------------------------------------------------------------------
-        | TRAFFIC
-        |--------------------------------------------------------------------------
-        */
-
-        y = addTrendCharts(
-            doc,
-            analytics,
-            y
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | ACQUISITION
-        |--------------------------------------------------------------------------
-        */
-
-        y = addAcquisitionCharts(
-            doc,
-            analytics,
-            y
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | CONTENT
-        |--------------------------------------------------------------------------
-        */
-
-        y = addContentCharts(
-            doc,
-            analytics,
-            y
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | TIMING
-        |--------------------------------------------------------------------------
-        */
-
-        y = addTimingAnalysis(
-            doc,
-            analytics,
-            y
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | MANAGEMENT PRIORITIES
+        | MANAGEMENT PRIORITIES (combined across patient + website)
         |--------------------------------------------------------------------------
         */
 
@@ -4484,7 +5816,8 @@ export default async function handler(req, res) {
         y = addDataCoverageSection(
             doc,
             analytics,
-            y
+            y,
+            patientAnalytics
         );
 
         /*
@@ -4670,7 +6003,7 @@ export default async function handler(req, res) {
         |--------------------------------------------------------------------------
         */
 
-        addFooter(doc);
+        addFooter(doc, footerLabel);
 
         /*
         |--------------------------------------------------------------------------
@@ -4750,10 +6083,14 @@ export default async function handler(req, res) {
         const emailHTML =
             buildEmailHTML({
                 analytics,
+                patientAnalytics,
                 insights:
-                    orderedInsights,
+                    orderedWebInsights,
+                patientInsights:
+                    orderedPatientInsights,
                 aiNarrative,
                 periodText,
+                headerSubtitle,
             });
 
         const subject =

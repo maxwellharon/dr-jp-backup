@@ -1837,6 +1837,7 @@ async function sendNow() {
 
     const reportData = {
       summary: {},
+      patientAnalytics: null,
       timeSeries: [],
       topPages: [],
       topCountries: [],
@@ -1869,8 +1870,45 @@ async function sendNow() {
           avgHeight: insights.avgHeight
         }
 
+        // Full patient analytics payload. The server builds its own KPI
+        // dashboard, deep AI insights, pie/bar charts and breakdown tables
+        // from this rather than the handful of summary insights below, so
+        // patient data gets the same depth of treatment as website data.
+        reportData.patientAnalytics = {
+          total: insights.total,
+
+          avgAge: insights.avgAge,
+          avgBmi: insights.avgBmi,
+          avgWeight: insights.avgWeight,
+          avgHeight: insights.avgHeight,
+
+          nonSurgCount: insights.nonSurgCount,
+          nonSurgPercent: insights.nonSurgPercent,
+
+          totalValue: insights.totalValue,
+          avgValue: insights.avgValue,
+
+          highBmiCount: insights.highBmiCount,
+          bmiCategories: insights.bmiCategories,
+
+          pastSurgCount: insights.pastSurgCount,
+
+          procedures: insights.allProcedures,
+          procedureValueBreakdown: insights.procedureValueBreakdown,
+
+          countries: insights.countryDistribution,
+
+          ageGroups: insights.ageGroups,
+
+          monthlyTrend: insights.monthlyTrend
+        }
+
+        // A handful of high-level insights are still sent as a fallback /
+        // supplement; the server generates a much larger, deeper set from
+        // patientAnalytics above and dedupes against these automatically.
         reportData.aiInsights.push(
           {
+            type: 'patient',
             title: 'Procedure demand',
             message:
               `${insights.mostRequested} is the leading request at ` +
@@ -1879,6 +1917,7 @@ async function sendNow() {
               'Align service capacity, content and lead follow-up around the strongest demand.'
           },
           {
+            type: 'patient',
             title: 'Age mix',
             message:
               `Average patient age is ${insights.avgAge} years. ` +
@@ -1887,6 +1926,7 @@ async function sendNow() {
               'Use the strongest demographic segment when prioritizing creative and campaign messaging.'
           },
           {
+            type: 'patient',
             title: 'Non-surgical demand',
             message:
               `${insights.nonSurgPercent}% of records are non-surgical.`,
@@ -1894,6 +1934,7 @@ async function sendNow() {
               'Consider using non-surgical treatments as lower-friction entry points into the clinic.'
           },
           {
+            type: 'patient',
             title: 'Geographic footprint',
             message:
               `${insights.dominantCountry} accounts for ` +
@@ -1902,6 +1943,7 @@ async function sendNow() {
               'Prioritize localization, targeting and follow-up around the strongest geographic market.'
           },
           {
+            type: 'patient',
             title: 'BMI profile',
             message:
               `${insights.highBmiCount} records have a BMI of 30 or higher.`,
@@ -1909,6 +1951,7 @@ async function sendNow() {
               'Use this as a screening and clinical workflow signal rather than a standalone eligibility decision.'
           },
           {
+            type: 'patient',
             title: 'Commercial value',
             message:
               `Average quoted value across the filtered cohort is KES ` +
@@ -1920,30 +1963,6 @@ async function sendNow() {
               'Track quoted value alongside lead volume to identify commercially meaningful demand.'
           }
         )
-
-        reportData.tables.push({
-          title: 'Top Procedures',
-          headers: ['Procedure', 'Leads', 'Share'],
-          rows: insights.topProcedures.map(
-            ([procedure, count]) => [
-              procedure,
-              count,
-              `${((count / insights.total) * 100).toFixed(1)}%`
-            ]
-          )
-        })
-
-        reportData.tables.push({
-          title: 'Geographic Distribution',
-          headers: ['Country', 'Leads', 'Share'],
-          rows: insights.countryDistribution.map(
-            ([country, count]) => [
-              country,
-              count,
-              `${((count / insights.total) * 100).toFixed(1)}%`
-            ]
-          )
-        })
       }
 
       if (form.includePatientData) {
@@ -2060,6 +2079,7 @@ async function sendNow() {
 
       reportData.aiInsights.push(
         {
+          type: 'web',
           title: 'Web acquisition',
           message:
             `${trafficSource} is currently the leading traffic source.`,
@@ -2067,6 +2087,7 @@ async function sendNow() {
             'Maintain the strongest acquisition channel while gradually diversifying dependency.'
         },
         {
+          type: 'web',
           title: 'Best page',
           message:
             `"${bestPage}" is the most visited page in the available dataset.`,
@@ -2074,6 +2095,7 @@ async function sendNow() {
             'Prioritize CTA clarity, lead capture and content quality on this page.'
         },
         {
+          type: 'web',
           title: 'Mobile',
           message:
             `Mobile contributes ${mobilePercent}% of sessions.`,
@@ -2081,6 +2103,7 @@ async function sendNow() {
             'Treat mobile conversion quality as a primary website KPI.'
         },
         {
+          type: 'web',
           title: 'Engagement health',
           message:
             `The current bounce rate is ${Number(summary.bounceRate || 0).toFixed(1)}%.`,
