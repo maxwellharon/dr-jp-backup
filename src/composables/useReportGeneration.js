@@ -174,35 +174,9 @@ export function useReportGeneration() {
       )
     })
 
-    const allProcedures = [...procMap.entries()]
+    const topProcs = [...procMap.entries()]
       .sort((a, b) => b[1] - a[1])
-
-    const topProcs = allProcedures.slice(0, 5)
-
-    const procedureValueBreakdown = [...procMap.keys()]
-      .map(procedure => {
-        const rows = data.filter(
-          p => (p.procedure || 'Unknown') === procedure
-        )
-
-        const totalProcedureValue = rows.reduce(
-          (sum, p) => {
-            const price = Number(p.price)
-            return sum + (Number.isFinite(price) ? price : 0)
-          },
-          0
-        )
-
-        return [
-          procedure,
-          rows.length,
-          Number(totalProcedureValue.toFixed(1)),
-          rows.length
-            ? Number((totalProcedureValue / rows.length).toFixed(1))
-            : 0
-        ]
-      })
-      .sort((a, b) => b[2] - a[2])
+      .slice(0, 5)
 
     const mostRequested = topProcs[0]?.[0] || 'N/A'
     const mostRequestedCount = topProcs[0]?.[1] || 0
@@ -239,25 +213,6 @@ export function useReportGeneration() {
         ageGroups['36-50']++
       } else if (age > 50) {
         ageGroups['51+']++
-      }
-    })
-
-    const bmiCategories = {
-      'Underweight (<18.5)': 0,
-      'Normal (18.5-24.9)': 0,
-      'Overweight (25-29.9)': 0,
-      'Obese (30+)': 0
-    }
-
-    bmis.forEach(bmi => {
-      if (bmi < 18.5) {
-        bmiCategories['Underweight (<18.5)']++
-      } else if (bmi < 25) {
-        bmiCategories['Normal (18.5-24.9)']++
-      } else if (bmi < 30) {
-        bmiCategories['Overweight (25-29.9)']++
-      } else {
-        bmiCategories['Obese (30+)']++
       }
     })
 
@@ -344,8 +299,6 @@ export function useReportGeneration() {
       mostRequestedCount,
 
       topProcedures: topProcs,
-      allProcedures,
-      procedureValueBreakdown,
 
       countryDistribution: topCountries,
       dominantCountry,
@@ -354,7 +307,6 @@ export function useReportGeneration() {
       ageGroups,
       dominantAgeGroup,
       dominantAgeGroupCount,
-      bmiCategories,
 
       monthlyTrend,
 

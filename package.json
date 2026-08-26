@@ -12,6 +12,7 @@
     "@google-analytics/data": "^7.0.0",
     "chart.js": "^4.5.1",
     "firebase": "^10.0.0",
+    "firebase-admin": "^14.3.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "leaflet": "^1.9.4",
