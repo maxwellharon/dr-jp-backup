@@ -61,12 +61,20 @@ function mapPatient(item, proceduresList) {
         ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non'))
         : false
 
+    // Wix field KEYS are case-sensitive, and this collection's fields are
+    // inconsistently cased — most are lowercase ("bmi", "weight", "email")
+    // but a few ("Phone", "Age", "Country") were created capitalized. Reading
+    // only the lowercase name silently drops that field for every record, so
+    // every field below checks both casings.
+    const rawPhone = item.phone ?? item.Phone ?? item.phoneNumber ?? item.PhoneNumber ?? item.mobile ?? item.Mobile
+    const rawAge = item.age ?? item.Age
+
     return {
         id: item._id,
         name: item.name || 'Anonymous',
         email: item.email || '',
-        phone: item.phone || item.phoneNumber || item.mobile || '—',
-        age: item.age ? Number(item.age) : null,
+        phone: rawPhone || '—',
+        age: rawAge !== undefined && rawAge !== null && rawAge !== '' ? Number(rawAge) : null,
         Country: item.Country || item.country || 'Kenya',
         selectedProcedure: procedureName,
         isNonSurgical,
