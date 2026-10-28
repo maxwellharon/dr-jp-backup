@@ -47,6 +47,43 @@ function extractDate(d) {
     return null
 }
 
+// ─── Field helper ───────────────────────────────────────────────────────────
+//
+// IMPORTANT WIX GOTCHA: the column header you see in the Wix Content Manager
+// (e.g. "Phone", "Age") is the field's display LABEL, not necessarily its
+// API field KEY. If a field was renamed after it was created, or was
+// auto-generated from an import/form connection, the key the API actually
+// returns can be completely different from the label shown in the table
+// (e.g. label "Phone" but key "phone_1", "quiz1Field", "field_key_abc123",
+// etc). A previous fix here only tried `item.Phone` / `item.phone`, which
+// works ONLY if the real key happens to match the label — it still came
+// back empty, which means the real key is something else entirely.
+//
+// This looks up a field by trying an exact-match list of likely key names,
+// case-insensitively, against whatever keys the Wix item actually has. It
+// also exposes a one-time diagnostic (see loadAll) that logs the real key
+// names from a live record to the browser console, so the exact key can be
+// read off directly instead of guessed at again.
+function getField(item, candidates) {
+    for (const name of candidates) {
+        if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
+            return item[name]
+        }
+    }
+    // Case-insensitive fallback: match any actual key on the item whose
+    // name equals one of the candidates ignoring case.
+    const lowerCandidates = candidates.map(c => c.toLowerCase())
+    for (const key of Object.keys(item)) {
+        if (lowerCandidates.includes(key.toLowerCase())) {
+            const value = item[key]
+            if (value !== undefined && value !== null && value !== '') {
+                return value
+            }
+        }
+    }
+    return undefined
+}
+
 // ─── Mappers ──────────────────────────────────────────────────────────────────
 
 function mapPatient(item, proceduresList) {
@@ -61,21 +98,22 @@ function mapPatient(item, proceduresList) {
         ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non'))
         : false
 
-    // Wix field KEYS are case-sensitive, and this collection's fields are
-    // inconsistently cased — most are lowercase ("bmi", "weight", "email")
-    // but a few ("Phone", "Age", "Country") were created capitalized. Reading
-    // only the lowercase name silently drops that field for every record, so
-    // every field below checks both casings.
-    const rawPhone = item.phone ?? item.Phone ?? item.phoneNumber ?? item.PhoneNumber ?? item.mobile ?? item.Mobile
-    const rawAge = item.age ?? item.Age
+    const rawPhone = getField(item, [
+        'phone', 'Phone', 'phoneNumber', 'PhoneNumber', 'phone_number',
+        'mobile', 'Mobile', 'mobileNumber', 'contactNumber', 'contact'
+    ])
+
+    const rawAge = getField(item, ['age', 'Age', 'patientAge', 'ageYears'])
+
+    const rawCountry = getField(item, ['Country', 'country', 'origin', 'originCountry', 'location'])
 
     return {
         id: item._id,
         name: item.name || 'Anonymous',
         email: item.email || '',
         phone: rawPhone || '—',
-        age: rawAge !== undefined && rawAge !== null && rawAge !== '' ? Number(rawAge) : null,
-        Country: item.Country || item.country || 'Kenya',
+        age: rawAge !== undefined ? Number(rawAge) : null,
+        Country: rawCountry || 'Kenya',
         selectedProcedure: procedureName,
         isNonSurgical,
         bmi: item.bmi ? Number(item.bmi) : null,
@@ -124,6 +162,24 @@ async function loadAll() {
             fetchAllFromCollection('inquiries'),
             fetchAllFromCollection('procedures')
         ])
+
+        // DIAGNOSTIC: if the first record still doesn't resolve phone/age
+        // after all the known-variant lookups above, print its real raw
+        // keys to the console. Open your browser's DevTools console (F12)
+        // after a page load and look for "🔎 RAW WIX FIELD KEYS" — whatever
+        // key is holding the phone/age value will be listed there, and that
+        // exact spelling can be added to the candidate lists in mapPatient
+        // above (and in api/_reportHelpers.js's mapPatient, which must be
+        // kept in sync with this file).
+        if (rawP.length) {
+            const sample = rawP[0]
+            const resolvedPhone = getField(sample, ['phone', 'Phone', 'phoneNumber', 'PhoneNumber', 'phone_number', 'mobile', 'Mobile'])
+            const resolvedAge = getField(sample, ['age', 'Age', 'patientAge', 'ageYears'])
+            if (resolvedPhone === undefined || resolvedAge === undefined) {
+                console.warn('🔎 RAW WIX FIELD KEYS (first QuoteSubmissions record):', Object.keys(sample))
+                console.warn('🔎 Full first record (check which key actually holds phone/age):', sample)
+            }
+        }
 
         // Map procedures FIRST — patients need the resolved list
         procedures.value = rawPr.map(mapProcedure)

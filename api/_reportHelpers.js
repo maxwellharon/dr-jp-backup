@@ -91,6 +91,29 @@ function extractDate(d) {
     return null
 }
 
+// Kept identical to getField() in src/composables/useWixData.js — see the
+// comment there for why this is needed (Wix's displayed column label can
+// differ from the actual API field key, and this collection also mixes
+// casings). If you change the candidate lists in one file, change them in
+// the other too.
+function getField(item, candidates) {
+    for (const name of candidates) {
+        if (item[name] !== undefined && item[name] !== null && item[name] !== '') {
+            return item[name]
+        }
+    }
+    const lowerCandidates = candidates.map(c => c.toLowerCase())
+    for (const key of Object.keys(item)) {
+        if (lowerCandidates.includes(key.toLowerCase())) {
+            const value = item[key]
+            if (value !== undefined && value !== null && value !== '') {
+                return value
+            }
+        }
+    }
+    return undefined
+}
+
 function mapProcedure(item) {
     return {
         id: item._id,
@@ -112,13 +135,22 @@ function mapPatient(item, proceduresList) {
         ? Boolean(proc.isNonSurgical || proc.category?.toLowerCase().includes('non'))
         : false
 
+    const rawPhone = getField(item, [
+        'phone', 'Phone', 'phoneNumber', 'PhoneNumber', 'phone_number',
+        'mobile', 'Mobile', 'mobileNumber', 'contactNumber', 'contact'
+    ])
+
+    const rawAge = getField(item, ['age', 'Age', 'patientAge', 'ageYears'])
+
+    const rawCountry = getField(item, ['Country', 'country', 'origin', 'originCountry', 'location'])
+
     return {
         id: item._id,
         name: item.name || 'Anonymous',
         email: item.email || '',
-        phone: item.phone || item.phoneNumber || item.mobile || '—',
-        age: item.age ? Number(item.age) : null,
-        Country: item.Country || item.country || 'Kenya',
+        phone: rawPhone || '—',
+        age: rawAge !== undefined ? Number(rawAge) : null,
+        Country: rawCountry || 'Kenya',
         selectedProcedure: procedureName,
         isNonSurgical,
         bmi: item.bmi ? Number(item.bmi) : null,
